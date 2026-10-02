@@ -46,6 +46,31 @@ class PortfolioView:
     freshness: dict[str, Freshness]
 
 
+def run_screen(cfg: AppConfig, fundamentals: FundamentalsService) -> list[ScreenResult]:
+    """Screen every configured candidate using cached SEC facts (no provider calls)."""
+    cands = cfg.plan.candidates
+    symbols = list(cands)
+    facts = fundamentals.facts(symbols)
+    names = fundamentals.company_names(symbols)
+    candidates = [
+        Candidate(
+            sym,
+            sector,
+            names.get(sym, sym),
+            facts.get(sym, {}),
+            note="" if sym in facts else "no SEC filer found for this ticker",
+        )
+        for sym, sector in cands.items()
+    ]
+    return screen(
+        candidates,
+        fundamentals.years(),
+        cfg.screen,
+        cfg.plan.max_stocks,
+        cfg.plan.max_per_sector,
+    )
+
+
 class Planner:
     def __init__(
         self, cfg: AppConfig, market: MarketDataService, fundamentals: FundamentalsService
@@ -117,27 +142,7 @@ class Planner:
     # --- plan -------------------------------------------------------------------------------------
 
     def screen(self) -> list[ScreenResult]:
-        cands = self.cfg.plan.candidates
-        symbols = list(cands)
-        facts = self.fundamentals.facts(symbols)
-        names = self.fundamentals.company_names(symbols)
-        candidates = [
-            Candidate(
-                sym,
-                sector,
-                names.get(sym, sym),
-                facts.get(sym, {}),
-                note="" if sym in facts else "no SEC filer found for this ticker",
-            )
-            for sym, sector in cands.items()
-        ]
-        return screen(
-            candidates,
-            self.fundamentals.years(),
-            self.cfg.screen,
-            self.cfg.plan.max_stocks,
-            self.cfg.plan.max_per_sector,
-        )
+        return run_screen(self.cfg, self.fundamentals)
 
     def plan(self, s: Session) -> PlanView:
         results = self.screen()
