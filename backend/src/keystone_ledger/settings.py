@@ -7,13 +7,26 @@ the TOML config (see `config.py`) so they are versioned, validated and audited s
 from __future__ import annotations
 
 import ipaddress
+import os
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def default_data_dir() -> Path:
+    """Where the DB and setup token live.
+
+    On Windows, %LOCALAPPDATA% is per-user and ACL-protected by default (POSIX 0600 modes don't
+    exist there). Elsewhere, `var/` in the repo, created 0700.
+    """
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        return Path(base) / "KeystoneLedger"
+    return REPO_ROOT / "var"
 
 
 class Settings(BaseSettings):
@@ -24,7 +37,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    data_dir: Path = Field(default=REPO_ROOT / "var")
+    data_dir: Path = Field(default_factory=default_data_dir)
     config_path: Path = Field(default=REPO_ROOT / "config" / "keystone.toml")
 
     host: str = "127.0.0.1"
@@ -48,8 +61,6 @@ class Settings(BaseSettings):
 
     # SEC EDGAR fair-access policy requires a descriptive User-Agent with a contact address.
     sec_user_agent: str = ""
-    # Optional: Stooq has required a (free, CAPTCHA-issued) API key since March 2026.
-    stooq_api_key: SecretStr | None = None
 
     @field_validator("host")
     @classmethod
