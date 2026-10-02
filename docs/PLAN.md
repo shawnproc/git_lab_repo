@@ -18,6 +18,12 @@ data, educational only.
       a keystone for a full year, current and best streaks. The numbers are the owner's own
       entries, never fetched.
 
+- [x] **iPhone app:** installable from Safari, works offline, no login. A daily GitHub Actions job
+      builds a public snapshot (FRED S&P 500 + VIX for mood, SEC for the plan, link checks) and
+      publishes it with the app to GitHub Pages. Holdings are typed in from the broker app; the
+      split is in dollars; holdings and the wall stay on the phone, with backup and restore.
+      Charts stay in the PC app (Yahoo blocks cloud servers).
+
 ## Rules (all in `config/keystone.toml`)
 | Feature | Rule |
 |---|---|

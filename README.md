@@ -8,13 +8,47 @@ A personal long-term investing dashboard that runs on your own computer:
 - **My Money:** enter what you own, see whether you're on track, get a split for this month's
   money, and lay this month's stone on **your wall**. It grows by one stone for every month you
   invest, and a full year earns a keystone.
-- **Charts:** prices with trend lines, with the important moments circled and explained.
+- **Charts:** prices with trend lines, with the important moments circled and explained (PC app).
 - **Learn:** every word the app uses, in plain English, plus beginner questions answered.
 
 > **Educational tool, not financial advice.** It never connects to a broker or places trades.
 > Free public data only. Everything stays on your computer.
 
 ---
+
+## On your iPhone (no PC needed) ⭐
+
+The iPhone app is a web app you add to your Home Screen. Every weekday evening GitHub refreshes
+the market mood and your plan by itself (free), so your PC doesn't need to be on. Your holdings
+and your wall are saved **only on your phone**.
+
+### One-time setup (about 10 minutes, on a computer)
+1. **Merge this work into `main`.** On GitHub, open the pull request for branch
+   `claude/new-session-l8c0p3` and click **Merge**. (GitHub only runs scheduled jobs from `main`.)
+2. **Make the repository public.** Repository → **Settings** → **General** → scroll to
+   **Danger Zone** → **Change visibility** → **Public**. (No passwords or personal data are in it.)
+3. **Turn on the website.** **Settings** → **Pages** → under *Build and deployment*, set
+   **Source** to **GitHub Actions**.
+4. **Add your SEC contact as a secret.** **Settings** → **Secrets and variables** → **Actions** →
+   **New repository secret**. Name: `SEC_USER_AGENT`. Value: your name and email, for example
+   `Jane Smith jane@example.com`. Secrets are hidden, even in a public repository.
+5. **Run it the first time.** **Actions** tab → **Daily data + iPhone app** → **Run workflow**.
+   Wait for the green check (about 3 minutes).
+
+### Put it on your Home Screen
+1. On your iPhone, open **Safari** and go to `https://<your-github-name>.github.io/<repo-name>/`
+   (for this repo: **https://shawnproc.github.io/git_lab_repo/**).
+2. Tap the **Share** button (the square with an arrow) → **Add to Home Screen** → **Add**.
+3. Open **Keystone** from your Home Screen. It opens full-screen, like an app.
+
+### Your monthly routine (about 2 minutes)
+**Invest** tab → type each holding's value from your broker app → **Split it** → buy those dollar
+amounts in your broker app → **Lay the stone**. Every few months: **Wall** tab → **Save a backup**
+→ save it to Files or iCloud Drive.
+
+> Changing your plan (the 60/40 split, the company list, and so on): edit
+> `config/keystone.toml` on GitHub (copy it from `config/keystone.example.toml` the first time).
+> The next daily run uses it.
 
 ## Setting it up on Windows (step by step, about 15 minutes)
 
