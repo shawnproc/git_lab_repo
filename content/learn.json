@@ -1,16 +1,361 @@
 {
   "glossary": [
     {
+      "term": "Stock (share)",
+      "definition": "A tiny piece of ownership in one company. Own one Apple share and you own a sliver of Apple.",
+      "why_it_matters": "When the company does well over the years, its shares usually become worth more. When it does badly, they can lose value.",
+      "example": "If a company is split into 1,000,000 shares and you own 10, you own 0.001% of it."
+    },
+    {
+      "term": "Ticker symbol",
+      "definition": "The short code used to buy or look up an investment.",
+      "why_it_matters": "You type it into your broker’s app to buy. It’s how you tell this app what you own.",
+      "example": "VTI, VXUS, AAPL (Apple), MSFT (Microsoft). ^GSPC is the code for the S&P 500."
+    },
+    {
+      "term": "ETF (exchange-traded fund)",
+      "definition": "A basket of many investments that you buy as one thing, just like buying a single stock.",
+      "why_it_matters": "One purchase spreads your money across hundreds or thousands of companies, so no single company can sink you.",
+      "example": "Buying one share of VTI is like buying a tiny piece of about 3,500 US companies at once."
+    },
+    {
+      "term": "Index fund",
+      "definition": "A fund that simply copies a list of companies (an “index”) instead of having experts pick stocks.",
+      "why_it_matters": "No stock-picking means very low fees, and over long periods most expert pickers fail to beat a simple index fund.",
+      "example": "VTI and VXUS are index funds that happen to be ETFs."
+    },
+    {
+      "term": "S&P 500",
+      "definition": "A list of the 500 biggest US companies, used as the scoreboard for the US stock market.",
+      "why_it_matters": "When the news says “the market was up 1% today”, they usually mean the S&P 500. This app uses it for the market mood."
+    },
+    {
+      "term": "VTI",
+      "definition": "Vanguard Morningstar Total Stock Market ETF: one fund holding almost every public company in the US. (Its name gained “Morningstar” in July 2026; the fund itself didn’t change.)",
+      "why_it_matters": "It’s the biggest part of your plan’s safe foundation (the core).",
+      "example": "If the whole US market grows 8% in a year, VTI grows about 8% too (minus a tiny fee)."
+    },
+    {
+      "term": "VXUS",
+      "definition": "Vanguard Total International Stock ETF: one fund holding thousands of companies outside the US.",
+      "why_it_matters": "It protects you if the US has a slow decade while other countries do well. The US and the rest of the world have taken turns leading.",
+      "example": "It includes big companies in Japan, the UK, Canada, Europe and many other countries."
+    },
+    {
+      "term": "Core (safe foundation)",
+      "definition": "The largest, steadiest part of your plan: broad index funds (VTI + VXUS).",
+      "why_it_matters": "It doesn’t depend on you picking winners. Even if every hand-picked company disappoints, the core keeps you invested in the whole market.",
+      "example": "In the default plan, $6,000 of every $10,000 goes to the core."
+    },
+    {
+      "term": "Diversification",
+      "definition": "Spreading your money across many different investments.",
+      "why_it_matters": "“Don’t put all your eggs in one basket.” If one company or country struggles, the rest can carry you."
+    },
+    {
+      "term": "Broker",
+      "definition": "The company whose app or website you use to buy and sell investments.",
+      "why_it_matters": "This app tells you what to buy; you place the actual order at your broker. This app never connects to it.",
+      "example": "Fidelity, Charles Schwab, Vanguard and Robinhood are brokers."
+    },
+    {
+      "term": "Fractional share",
+      "definition": "Part of a share, so you can invest a dollar amount instead of buying whole shares.",
+      "why_it_matters": "It lets you follow the plan exactly even with small amounts.",
+      "example": "With $100 and a $400 stock, you can buy ¼ share."
+    },
+    {
+      "term": "Portfolio",
+      "definition": "Everything you’ve invested in, all together.",
+      "why_it_matters": "The app tracks your portfolio’s total worth and how it compares with your plan."
+    },
+    {
+      "term": "Percentage point",
+      "definition": "The plain difference between two percentages.",
+      "why_it_matters": "It’s how the app measures drift. It isn’t the same as “percent change”.",
+      "example": "Going from 45% to 39% is 6 percentage points."
+    },
+    {
+      "term": "Target",
+      "definition": "The share of your money the plan wants in each investment.",
+      "why_it_matters": "Comparing your real mix with the targets shows whether you’re on track.",
+      "example": "VTI’s target is 45%: with $10,000 total, about $4,500 should be in VTI."
+    },
+    {
+      "term": "Drift",
+      "definition": "When your real mix slides away from the targets because some investments grow faster than others.",
+      "why_it_matters": "A little drift is normal. Too much means you’re taking more (or less) risk than you planned.",
+      "example": "VTI is meant to be 45% but has slipped to 39%."
+    },
+    {
+      "term": "Rebalancing",
+      "definition": "Bringing your mix back to the targets.",
+      "why_it_matters": "This app rebalances gently: it steers your new monthly money toward whatever is below target, so you don’t have to sell."
+    },
+    {
+      "term": "Monthly contribution",
+      "definition": "The money you add to your investments each month.",
+      "why_it_matters": "Adding a fixed amount on a schedule is one of the simplest habits that builds wealth.",
+      "example": "Adding $500 on the 1st of every month, no matter what the market is doing."
+    },
+    {
+      "term": "Dollar-cost averaging",
+      "definition": "Investing the same amount on a regular schedule, whatever prices are doing.",
+      "why_it_matters": "When prices are low, your fixed amount buys more shares. You don’t have to guess the “right time”."
+    },
+    {
+      "term": "Cost basis (average price paid)",
+      "definition": "What you paid for an investment, on average per share.",
+      "why_it_matters": "The app compares it with today’s price to show your gain or loss. Taxes also use it when you sell.",
+      "example": "You bought 5 shares at $100 and 5 at $120, so your average cost is $110."
+    },
+    {
+      "term": "Gain or loss",
+      "definition": "The difference between what your investment is worth now and what you paid.",
+      "why_it_matters": "It’s only “on paper” until you sell. Prices go up and down; a long-term investor doesn’t need to react to every move."
+    },
+    {
+      "term": "Market mood",
+      "definition": "This app’s simple weather report for the market: 🟢 Green, 🟡 Yellow or 🔴 Red.",
+      "why_it_matters": "It’s context, not a buy or sell signal. For a long-term plan the usual move is the same in every color: keep adding on schedule."
+    },
+    {
       "term": "Moving average (50-day, 200-day)",
-      "definition": "The average closing price over the last 50 or 200 trading days, redrawn every day.",
-      "why_it_matters": "It smooths out daily noise so you can see the trend. Price above its 200-day line usually means a long-term uptrend."
+      "definition": "The average price over the last 50 or 200 trading days, recalculated every day.",
+      "why_it_matters": "It smooths out daily noise so you can see the trend. The 50-day (~2½ months) shows the short-term trend; the 200-day (~10 months) shows the long-term trend.",
+      "example": "If the price is above its 200-day average, it has generally been rising."
+    },
+    {
+      "term": "VIX (the “fear gauge”)",
+      "definition": "One number that measures how wildly investors expect US stock prices to swing over the next month.",
+      "why_it_matters": "It shows how nervous the market is. Under 20 is calm, 20–30 is nervous, over 30 is scared.",
+      "example": "The VIX shot far above 30 during the 2008 financial crisis and in March 2020."
+    },
+    {
+      "term": "Golden cross",
+      "definition": "When the 50-day average (short-term trend) crosses above the 200-day average (long-term trend).",
+      "why_it_matters": "Recent momentum turned stronger. It’s seen as a good sign, but it shows up late and doesn’t predict the future."
+    },
+    {
+      "term": "Death cross",
+      "definition": "When the 50-day average (short-term trend) crosses below the 200-day average (long-term trend).",
+      "why_it_matters": "Recent momentum weakened. Scary name, but it’s a late signal and many stocks recover soon after. Information, not an alarm."
+    },
+    {
+      "term": "Big move (big jump / big drop)",
+      "definition": "A day when a price moved far more than usual: at least 3 times its normal daily move, and at least 3%.",
+      "why_it_matters": "Something usually happened: a profit report, news or the whole market moving. Find out why before doing anything."
+    },
+    {
+      "term": "SEC (Securities and Exchange Commission)",
+      "definition": "The US government agency that oversees investing. Public companies must file honest financial reports with it.",
+      "why_it_matters": "This app reads those official reports for free to choose its hand-picked companies."
+    },
+    {
+      "term": "Revenue (sales)",
+      "definition": "All the money a company takes in from selling its products or services, before paying any costs.",
+      "why_it_matters": "Growing sales is a sign people want what the company sells. It’s the first test in the stock check."
+    },
+    {
+      "term": "Operating margin (profit per $1 of sales)",
+      "definition": "How many cents of every $1 in sales a company keeps as profit after the costs of running the business (before taxes).",
+      "why_it_matters": "A higher number means a more profitable business. The app wants at least 12¢ per $1.",
+      "example": "Sales of $100 and operating profit of $25 is a 25% margin: 25¢ per $1."
+    },
+    {
+      "term": "Free cash flow",
+      "definition": "The cash left over after paying to run the business and buy equipment.",
+      "why_it_matters": "It’s real money the company can use to grow, pay debt or reward shareholders. Profits on paper are nice; cash is proof."
+    },
+    {
+      "term": "Long-term debt",
+      "definition": "Money a company has borrowed and must pay back over more than a year.",
+      "why_it_matters": "Some debt is normal. The app checks the company could pay it off with 3 years of profit or less."
+    },
+    {
+      "term": "Sector (industry)",
+      "definition": "The kind of business a company is in, like technology, health care or energy.",
+      "why_it_matters": "Companies in the same sector often rise and fall together, so the plan allows at most 2 from any one sector."
+    },
+    {
+      "term": "Off-plan",
+      "definition": "Something you own that isn’t part of your plan.",
+      "why_it_matters": "That’s okay. It still counts toward your total, but the app doesn’t send new money to it."
+    },
+    {
+      "term": "Expense ratio (fund fee)",
+      "definition": "The small yearly fee a fund charges, as a percentage of what you have in it.",
+      "why_it_matters": "Lower is better: fees come out every year, and over decades they add up.",
+      "example": "A 0.05% fee on $10,000 is $5 a year."
+    },
+    {
+      "term": "Compound growth",
+      "definition": "Earning returns on your earlier returns, not just on the money you put in.",
+      "why_it_matters": "It’s why starting early and staying invested matters so much: growth builds on growth."
     }
   ],
   "faq": [
     {
       "q": "Is this financial advice?",
-      "a": "No. It's an educational tool that applies simple, visible rules to public data. Decisions are yours."
+      "a": "No. It’s an educational tool that applies simple, visible rules to free public data. It can’t predict the future and doesn’t know your full situation (income, debts, goals, taxes). Decisions are yours. A licensed financial adviser can give personal advice."
+    },
+    {
+      "q": "What should I do before I invest at all?",
+      "a": "Common guidance from the SEC’s Investor.gov is to make a budget, keep an emergency fund in savings, and pay off high-interest credit card debt first. Card interest can be much more than investments typically earn. Only invest money you won’t need for several years."
+    },
+    {
+      "q": "The mood is Red. Should I sell?",
+      "a": "For a long-term plan, usually no. Red means prices are falling and investors are scared. Selling then locks in the drop. Many long-term investors keep adding on schedule, because the same money buys more shares when prices are lower. If falling prices would keep you up at night, that’s a sign to talk to an adviser about how much risk you’re comfortable with."
+    },
+    {
+      "q": "How often should I open this app?",
+      "a": "Once a month is plenty: enter your contribution, follow the split, and update your holdings after you buy. Checking every day tends to make people anxious and more likely to react to normal ups and downs."
+    },
+    {
+      "q": "Which broker do I need?",
+      "a": "Any major US broker works, as long as it sells ETFs and stocks. Fidelity, Charles Schwab and Vanguard are common choices. Fractional shares (buying in dollar amounts) make following the plan easier; check that your broker supports them for both ETFs and stocks. This app never connects to your broker. You place orders yourself."
+    },
+    {
+      "q": "Do I pay taxes on this?",
+      "a": "In a regular (taxable) brokerage account, you generally owe tax when you sell for a gain, and on dividends. Per the IRS, if you held an investment for more than one year before selling, the gain is “long-term” and usually taxed at a lower rate than a “short-term” gain (held one year or less). Retirement accounts like an IRA or 401(k) follow different rules. This is general information only. Rules change and depend on your situation, so talk to a tax professional."
+    },
+    {
+      "q": "Why not put 100% in VTI and VXUS?",
+      "a": "You can, and many experts say that’s the best choice for most beginners: simple, cheap and fully diversified. The 40% hand-picked part is optional. It’s for learning how strong companies look and for conviction. You can shrink it or set it to zero in the config file."
+    },
+    {
+      "q": "What happens if a hand-picked company starts failing the tests?",
+      "a": "The app re-reads company reports about once a month. If a company fails, it drops out of the plan and its target goes to the next company that passes (or to the core). The app never tells you to sell. It shows the company as “not in your plan”, and your new monthly money stops going there. Whether to sell it is your call."
+    },
+    {
+      "q": "Can I lose money?",
+      "a": "Yes. All stock investments can go down, sometimes a lot and for years. The US market has fallen more than 30% several times in history (2008 and 2020 are recent examples). Diversification and a long time horizon reduce the risk but don’t remove it."
+    },
+    {
+      "q": "Why are some numbers marked “old” or “missing”?",
+      "a": "The app uses free data sources that sometimes lag or limit requests. Rather than guess, it shows a yellow warning until fresh data arrives. Click “Refresh prices” or try again later."
+    },
+    {
+      "q": "Why does a company show ➖ “no data” on a test?",
+      "a": "Companies label numbers in their reports in different ways, and some don’t report a number the way the app reads it. Instead of guessing, the app skips that test. A company can still qualify with one skipped test, but not more."
+    },
+    {
+      "q": "Is my information private?",
+      "a": "Yes. Everything stays in a file on your own computer. The app only reads public data (prices and company reports) and is locked behind your password."
     }
   ],
-  "links": []
+  "links": [
+    {
+      "title": "Introduction to Investing",
+      "url": "https://www.investor.gov/introduction-investing",
+      "source": "SEC · Investor.gov",
+      "kind": "article",
+      "topic": "Getting started",
+      "verified_on": null
+    },
+    {
+      "title": "Five Questions to Ask Before You Invest",
+      "url": "https://www.investor.gov/introduction-investing/getting-started/five-questions-ask-you-invest",
+      "source": "SEC · Investor.gov",
+      "kind": "article",
+      "topic": "Getting started",
+      "verified_on": null
+    },
+    {
+      "title": "Asset Allocation and Diversification",
+      "url": "https://www.investor.gov/introduction-investing/getting-started/asset-allocation",
+      "source": "SEC · Investor.gov",
+      "kind": "article",
+      "topic": "Building your plan",
+      "verified_on": null
+    },
+    {
+      "title": "Beginners’ Guide to Asset Allocation, Diversification, and Rebalancing",
+      "url": "https://www.investor.gov/additional-resources/general-resources/publications-research/info-sheets/beginners-guide-asset",
+      "source": "SEC · Investor.gov",
+      "kind": "article",
+      "topic": "Building your plan",
+      "verified_on": null
+    },
+    {
+      "title": "Dollar Cost Averaging",
+      "url": "https://www.investor.gov/introduction-investing/investing-basics/glossary/dollar-cost-averaging",
+      "source": "SEC · Investor.gov",
+      "kind": "article",
+      "topic": "Building your plan",
+      "verified_on": null
+    },
+    {
+      "title": "Investor Bulletin: Index Funds",
+      "url": "https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-bulletins-26",
+      "source": "SEC · Investor.gov",
+      "kind": "article",
+      "topic": "Funds and ETFs",
+      "verified_on": null
+    },
+    {
+      "title": "Exchange-Traded Funds and Products",
+      "url": "https://www.finra.org/investors/investing/investment-products/exchange-traded-funds-and-products",
+      "source": "FINRA",
+      "kind": "article",
+      "topic": "Funds and ETFs",
+      "verified_on": null
+    },
+    {
+      "title": "ETFs vs. Mutual Funds: Similarities and Differences",
+      "url": "https://www.finra.org/investors/insights/etf-vs-mutual-fund",
+      "source": "FINRA",
+      "kind": "article",
+      "topic": "Funds and ETFs",
+      "verified_on": null
+    },
+    {
+      "title": "VTI fund profile (holdings, fees)",
+      "url": "https://investor.vanguard.com/investment-products/etfs/profile/vti",
+      "source": "Vanguard",
+      "kind": "article",
+      "topic": "Funds and ETFs",
+      "verified_on": null
+    },
+    {
+      "title": "Stocks: frequently asked questions",
+      "url": "https://www.investor.gov/introduction-investing/investing-basics/investment-products/stocks",
+      "source": "SEC · Investor.gov",
+      "kind": "article",
+      "topic": "Stocks",
+      "verified_on": null
+    },
+    {
+      "title": "Price and market capitalization (video)",
+      "url": "https://www.khanacademy.org/economics-finance-domain/core-finance/stock-and-bonds/valuation-and-investing/v/price-and-market-capitalization",
+      "source": "Khan Academy",
+      "kind": "video",
+      "topic": "Stocks",
+      "verified_on": null
+    },
+    {
+      "title": "Compound interest explained",
+      "url": "https://www.investor.gov/introduction-investing/investing-basics/glossary/compound-interest",
+      "source": "SEC · Investor.gov",
+      "kind": "article",
+      "topic": "Growing your money",
+      "verified_on": null
+    },
+    {
+      "title": "Savings goal calculator",
+      "url": "https://www.investor.gov/financial-tools-calculators/calculators/savings-goal-calculator",
+      "source": "SEC · Investor.gov",
+      "kind": "tool",
+      "topic": "Growing your money",
+      "verified_on": null
+    },
+    {
+      "title": "Topic 409: Capital gains and losses",
+      "url": "https://www.irs.gov/taxtopics/tc409",
+      "source": "IRS",
+      "kind": "article",
+      "topic": "Taxes",
+      "verified_on": null
+    }
+  ]
 }

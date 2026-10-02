@@ -25,6 +25,7 @@ class GlossaryEntry(_Strict):
     term: Annotated[str, Field(min_length=1, max_length=120)]
     definition: Text
     why_it_matters: Text
+    example: Annotated[str, Field(max_length=2000)] | None = None
 
 
 class FaqEntry(_Strict):
@@ -52,6 +53,21 @@ class LearnContent(_Strict):
     glossary: list[GlossaryEntry] = Field(default_factory=list, max_length=200)
     faq: list[FaqEntry] = Field(default_factory=list, max_length=100)
     links: list[LinkEntry] = Field(default_factory=list, max_length=200)
+
+
+class LearnOut(_Strict):
+    """What the page shows: only links that passed `verify-links` are included."""
+
+    glossary: list[GlossaryEntry]
+    faq: list[FaqEntry]
+    links: list[LinkEntry]
+    pending_links: int
+
+
+def for_display(c: LearnContent) -> LearnOut:
+    shown = [link for link in c.links if link.verified_on is not None]
+    return LearnOut(glossary=c.glossary, faq=c.faq, links=shown,
+                    pending_links=len(c.links) - len(shown))  # fmt: skip
 
 
 def load_learn(path: Path = LEARN_PATH) -> LearnContent:

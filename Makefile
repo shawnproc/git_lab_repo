@@ -7,7 +7,7 @@ FRONTEND := frontend
 UV := uv --directory $(BACKEND)
 NPM := npm --prefix $(FRONTEND)
 
-.PHONY: help install run dev build check lint typecheck test audit fmt clean
+.PHONY: help install run dev build check lint typecheck test audit fmt clean verify-links
 
 help: ## Show targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -26,6 +26,9 @@ dev: ## Backend on :8787 + Vite dev server on :5173 (hot reload)
 	@trap 'kill 0' EXIT; \
 	KL_DEV_ORIGINS='["http://127.0.0.1:5173"]' $(UV) run --frozen python -m keystone_ledger.serve & \
 	$(NPM) run dev
+
+verify-links: ## Check every Learn link and stamp the ones that open
+	$(UV) run --frozen python -m keystone_ledger.tools.verify_links
 
 fmt: ## Auto-format
 	$(UV) run --frozen ruff format .
