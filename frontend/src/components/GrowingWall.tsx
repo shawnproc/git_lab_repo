@@ -104,9 +104,9 @@ export function GrowingWall({ wall, maxYears }: { wall: Wall; maxYears?: number 
 
 export function WallStats({ wall }: { wall: Wall }) {
   const items = [
-    { label: 'Stones laid', value: String(wall.months_laid), sub: 'months you invested' },
-    { label: 'Current streak', value: String(wall.current_streak), sub: 'months in a row' },
-    { label: 'Best streak', value: String(wall.longest_streak), sub: 'months in a row' },
+    { label: 'Stones laid', value: String(wall.months_laid), sub: wall.months_laid === 1 ? 'month you invested' : 'months you invested' },
+    { label: 'Current streak', value: String(wall.current_streak), sub: wall.current_streak === 1 ? 'month in a row' : 'months in a row' },
+    { label: 'Best streak', value: String(wall.longest_streak), sub: wall.longest_streak === 1 ? 'month in a row' : 'months in a row' },
     { label: 'Total you logged', value: fmtMoney(wall.total, false), sub: 'what you typed in' },
   ]
   return (
