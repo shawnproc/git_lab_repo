@@ -1,5 +1,6 @@
 import { api, type Dashboard, type Mood } from '../api'
 import { MoodArch } from '../components/brand'
+import { GrowingWall, WallStats } from '../components/GrowingWall'
 import { Card, ErrorText, Explain, Figure, PageHeader, StaleBanner } from '../components/ui'
 import { fmtMoney, fmtSignedMoney, fmtSignedPct, gainClass } from '../format'
 import { useApi } from '../useApi'
@@ -101,6 +102,23 @@ export function PortfolioCard({ d }: { d: Dashboard }) {
   )
 }
 
+function WallSummary() {
+  const { data } = useApi(api.wall)
+  if (!data) return null
+  return (
+    <Card title="Your wall">
+      <p className="serif mb-4 text-lg">{data.wall.message}</p>
+      <WallStats wall={data.wall} />
+      <div className="mt-5">
+        <GrowingWall wall={data.wall} maxYears={3} />
+      </div>
+      <p className="muted mt-3 text-sm">
+        Lay this month’s stone on <a className="underline" href="#/money">My Money</a> (Step 3) after you invest.
+      </p>
+    </Card>
+  )
+}
+
 export function Home() {
   const { data, error, loading, busy, run } = useApi(api.dashboard)
   return (
@@ -128,6 +146,7 @@ export function Home() {
           />
           <MoodCard d={data} />
           <PortfolioCard d={data} />
+          <WallSummary />
         </div>
       )}
     </div>

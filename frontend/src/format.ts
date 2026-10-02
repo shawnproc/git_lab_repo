@@ -52,3 +52,10 @@ export function gainClass(n: number | null): string {
   if (n === null || n === 0) return ''
   return n > 0 ? 'text-[var(--color-up)]' : 'text-[var(--color-down)]'
 }
+
+/** "2026-10-01" -> "October 2026" */
+export function fmtMonth(day: string): string {
+  const d = new Date(`${day}T12:00:00Z`)
+  if (Number.isNaN(d.getTime())) return day
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+}

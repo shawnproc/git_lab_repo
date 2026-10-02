@@ -177,6 +177,55 @@ export interface Learn {
   pending_links: number
 }
 
+export type StoneState = 'laid' | 'open' | 'missed' | 'future' | 'before_start'
+
+export interface Stone {
+  month: string
+  label: string
+  state: StoneState
+  amount: number
+  entries: number
+}
+
+export interface Course {
+  year: number
+  stones: Stone[]
+  laid: number
+  keystone: boolean
+  total: number
+}
+
+export interface Wall {
+  courses: Course[]
+  total: number
+  months_laid: number
+  current_streak: number
+  longest_streak: number
+  first_month: string | null
+  this_month: string
+  this_month_laid: boolean
+  keystones: number
+  message: string
+}
+
+export interface WallEntry {
+  id: number
+  month: string
+  amount: number
+  note: string
+  created_at: string
+}
+
+export interface WallData {
+  wall: Wall
+  entries: WallEntry[]
+}
+
+/** This month in the browser's own time zone, like "2026-10". */
+export function localMonth(d: Date = new Date()): string {
+  return `${String(d.getFullYear())}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 export class ApiError extends Error {
   readonly status: number
   readonly retryAfter: number | null
@@ -263,4 +312,8 @@ export const api = {
   chart: (symbol: string, days = 730) =>
     request<Chart>('GET', `/api/chart/${encodeURIComponent(symbol)}?days=${String(days)}`),
   learn: () => request<Learn>('GET', '/api/learn'),
+  wall: () => request<WallData>('GET', `/api/wall?this_month=${localMonth()}`),
+  logContribution: (month: string, amount: number, note = '') =>
+    request<WallData>('POST', '/api/contributions', { month, amount, note, this_month: localMonth() }),
+  deleteContribution: (id: number) => request<undefined>('DELETE', `/api/contributions/${String(id)}`),
 }

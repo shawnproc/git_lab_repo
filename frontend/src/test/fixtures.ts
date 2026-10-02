@@ -1,4 +1,4 @@
-import type { Dashboard, Freshness, Holdings, Learn, Plan } from '../api'
+import type { Dashboard, Freshness, Holdings, Learn, Plan, Stone, WallData } from '../api'
 
 export const fresh: Freshness = {
   source: 'yfinance',
@@ -88,4 +88,33 @@ export function routeFetch(routes: Record<string, unknown>, calls: { url: string
     if (body === undefined) return Promise.resolve(new Response(JSON.stringify({ detail: 'not found' }), { status: 404 }))
     return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
   }
+}
+
+function stones(year: number, laid: number[], open?: number): Stone[] {
+  const names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  return names.map((n, i) => {
+    const m = i + 1
+    const month = `${String(year)}-${String(m).padStart(2, '0')}-01`
+    const state = laid.includes(m) ? 'laid' : m === open ? 'open' : open !== undefined && m > open ? 'future' : 'missed'
+    return { month, label: `${n} ${String(year)}`, state, amount: laid.includes(m) ? 500 : 0, entries: laid.includes(m) ? 1 : 0 }
+  })
+}
+
+export const wall: WallData = {
+  wall: {
+    courses: [
+      { year: 2026, stones: stones(2026, [1, 2, 3, 7, 8, 9], 10), laid: 6, keystone: false, total: 3000 },
+      { year: 2025, stones: stones(2025, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]), laid: 12, keystone: true, total: 6000 },
+    ],
+    total: 9000,
+    months_laid: 18,
+    current_streak: 3,
+    longest_streak: 15,
+    first_month: '2025-01-01',
+    this_month: '2026-10-01',
+    this_month_laid: false,
+    keystones: 1,
+    message: 'You’ve laid 3 months in a row. Invest this month to keep the streak going.',
+  },
+  entries: [{ id: 7, month: '2026-09-01', amount: 500, note: 'payday', created_at: '2026-09-15T12:00:00Z' }],
 }

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { parseRows } from '../pages/Money'
-import { dashboard, holdings, learn, plan, routeFetch } from './fixtures'
+import { dashboard, holdings, learn, plan, routeFetch, wall } from './fixtures'
 
 vi.mock('lightweight-charts', () => ({
   createChart: () => ({
@@ -32,6 +32,7 @@ function start(hash: string, extra: Record<string, unknown> = {}, calls: { url: 
           'GET /api/plan': plan,
           'GET /api/holdings': holdings,
           'GET /api/learn': learn,
+          'GET /api/wall': wall,
           ...extra,
         },
         calls,
@@ -140,6 +141,42 @@ describe('My Money', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Show me how to split it' }))
     expect(await screen.findByText(/Here’s what to buy/)).toBeInTheDocument()
     expect(screen.getByText(/≈ 7.5 shares at about \$66.67 each/)).toBeInTheDocument()
+  })
+})
+
+describe('The growing wall', () => {
+  it('shows stats, stones with plain labels, and the keystone on Home', async () => {
+    start('#/home')
+    expect(await screen.findByText(/Invest this month to keep the streak going/)).toBeInTheDocument()
+    expect(screen.getByText('Best streak')).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: 'March 2026: $500.00 invested' })).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: 'October 2026: not laid yet (this month)' })).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: 'April 2026: no investment logged' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '2025: all 12 months laid, keystone earned' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '2026: keystone not earned yet' })).toBeInTheDocument()
+  })
+
+  it('lays this month’s stone from the contribution split', async () => {
+    const calls: { url: string; init?: RequestInit }[] = []
+    start('#/money', {
+      'POST /api/contribution': { amount: 500, allocations: [{ symbol: 'VXUS', amount: 500, shares: 7.5, price: 66.67 }], leftover: 0, note: '' },
+      'POST /api/contributions': wall,
+    }, calls)
+    fireEvent.click(await screen.findByRole('button', { name: 'Show me how to split it' }))
+    fireEvent.click(await screen.findByRole('button', { name: /I invested \$500.00/ }))
+    expect(await screen.findByText(/Stone laid for this month/)).toBeInTheDocument()
+    const post = calls.find((c) => c.url === '/api/contributions')
+    const body = JSON.parse(post?.init?.body as string) as { month: string; amount: number; this_month: string }
+    expect(body.amount).toBe(500)
+    expect(body.month).toMatch(/^\d{4}-\d{2}$/)
+    expect(body.month).toBe(body.this_month)
+    expect((post?.init?.headers as Record<string, string>)['x-csrf-token']).toBe('tok')
+  })
+
+  it('validates the log form in plain English', async () => {
+    start('#/money')
+    fireEvent.click(await screen.findByRole('button', { name: 'Lay a stone' }))
+    expect(await screen.findByText('Type the amount you invested, like 500.')).toBeInTheDocument()
   })
 })
 

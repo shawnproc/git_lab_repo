@@ -1,8 +1,9 @@
 import { type SubmitEvent, useState } from 'react'
-import { api, type ContributionPlan, type Holdings, type HoldingInput } from '../api'
+import { api, type ContributionPlan, type Holdings, type HoldingInput, localMonth, type WallData } from '../api'
+import { GrowingWall, WallStats } from '../components/GrowingWall'
 import { SpiritLevel } from '../components/brand'
 import { Card, ErrorText, Explain, PageHeader, StaleBanner } from '../components/ui'
-import { fmtMoney, fmtPct, fmtShares, fmtSignedMoney, gainClass } from '../format'
+import { fmtMonth, fmtMoney, fmtPct, fmtShares, fmtSignedMoney, gainClass } from '../format'
 import { errorMessage, useApi } from '../useApi'
 import { KIND_LABEL } from './Plan'
 
@@ -217,7 +218,7 @@ function DriftTable({ data }: { data: Holdings }) {
   )
 }
 
-function Contribution() {
+function Contribution({ wall, onWall }: { wall: WallData | null; onWall: (w: WallData) => void }) {
   const [amount, setAmount] = useState('500')
   const [result, setResult] = useState<ContributionPlan | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -279,6 +280,7 @@ function Contribution() {
             <p className="mt-2 text-sm">Left over: <b>{fmtMoney(result.leftover)}</b>. Keep it in cash for next month.</p>
           )}
           {result.note && <p className="muted mt-2 text-sm">{result.note}</p>}
+          <LayStone amount={result.amount} wall={wall} onWall={onWall} />
           <p className="muted mt-2 text-xs">
             Prices move during the day, so share counts are approximate. In your broker, you can usually buy “in dollars”
             and type the dollar amount exactly.
@@ -300,14 +302,161 @@ function Contribution() {
   )
 }
 
+/** After investing, one click logs this month's money and lays its stone. */
+function LayStone({ amount, wall, onWall }: { amount: number; wall: WallData | null; onWall: (w: WallData) => void }) {
+  const [state, setState] = useState<'idle' | 'saving' | 'done'>('idle')
+  const [error, setError] = useState<string | null>(null)
+  async function lay() {
+    setState('saving')
+    setError(null)
+    try {
+      onWall(await api.logContribution(localMonth(), amount))
+      setState('done')
+    } catch (err) {
+      setError(errorMessage(err))
+      setState('idle')
+    }
+  }
+  return (
+    <div className="mt-4 border-t-2 border-dashed border-[var(--line)] pt-4">
+      {state === 'done' ? (
+        <p className="font-semibold text-[var(--color-up)]">✓ Stone laid for this month. See your wall below.</p>
+      ) : (
+        <>
+          <p className="text-sm">
+            Did you place these buys at your broker? Log it and this month’s stone goes on your wall.
+            {wall?.wall.this_month_laid && ' (This month already has a stone; this adds to it.)'}
+          </p>
+          <button className="btn mt-2" disabled={state === 'saving'} onClick={() => void lay()}>
+            {state === 'saving' ? 'Laying the stone…' : `I invested ${fmtMoney(amount)}. Lay this month’s stone`}
+          </button>
+        </>
+      )}
+      {error && <p role="alert" className="mt-2 text-sm text-[var(--color-down)]">{error}</p>}
+    </div>
+  )
+}
+
+function WallCard({ data, onWall }: { data: WallData; onWall: (w: WallData) => void }) {
+  const [month, setMonth] = useState(localMonth())
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function log(e: SubmitEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const n = Number(amount.replace(/[$,]/g, ''))
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      setError('Pick a month.')
+      return
+    }
+    if (!Number.isFinite(n) || n <= 0) {
+      setError('Type the amount you invested, like 500.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      onWall(await api.logContribution(month, n, note))
+      setAmount('')
+      setNote('')
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove(id: number) {
+    setError(null)
+    try {
+      await api.deleteContribution(id)
+      onWall(await api.wall())
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
+  return (
+    <Card title="Step 4 · Your wall, stone by stone">
+      <p className="serif mb-4 text-lg">{data.wall.message}</p>
+      <WallStats wall={data.wall} />
+      <div className="mt-6">
+        <GrowingWall wall={data.wall} />
+      </div>
+      <form onSubmit={(e) => void log(e)} className="mt-6 flex flex-wrap items-end gap-3">
+        <label className="text-sm">
+          Month
+          <input className="input mt-1 w-44" type="month" value={month} max={localMonth()} min="1990-01"
+            onChange={(e) => { setMonth(e.target.value) }} aria-label="Month you invested" />
+        </label>
+        <label className="text-sm">
+          Amount
+          <input className="input mt-1 w-36" inputMode="decimal" placeholder="500" value={amount}
+            onChange={(e) => { setAmount(e.target.value) }} aria-label="Amount you invested in dollars" />
+        </label>
+        <label className="min-w-48 flex-1 text-sm">
+          Note (optional)
+          <input className="input mt-1" maxLength={120} placeholder="e.g. birthday money" value={note}
+            onChange={(e) => { setNote(e.target.value) }} aria-label="Note" />
+        </label>
+        <button className="btn" disabled={busy}>{busy ? 'Laying…' : 'Lay a stone'}</button>
+      </form>
+      {error && <p role="alert" className="mt-2 text-sm text-[var(--color-down)]">{error}</p>}
+      {data.entries.length > 0 && (
+        <details className="mt-5">
+          <summary className="cursor-pointer text-sm font-semibold">Your log ({data.entries.length} most recent)</summary>
+          <ul className="mt-2 divide-y divide-[var(--line)] text-sm">
+            {data.entries.map((en) => (
+              <li key={en.id} className="flex flex-wrap items-center gap-3 py-2">
+                <span className="w-36 font-mono">{fmtMonth(en.month)}</span>
+                <span className="w-28 font-mono font-semibold">{fmtMoney(en.amount)}</span>
+                <span className="muted flex-1">{en.note}</span>
+                <button className="btn btn-ghost px-2 py-1 text-xs" onClick={() => void remove(en.id)}
+                  aria-label={`Remove ${fmtMoney(en.amount)} from ${fmtMonth(en.month)}`}>
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      <Explain title="How does the wall work?">
+        <p>
+          Every month you invest, you lay one <b>stone</b>. Each row is one year (January to December), and the wall
+          grows upward: your first year is the foundation at the bottom.
+        </p>
+        <p>
+          Fill all 12 months of a year and that row earns a gold <b>keystone</b>, the stone that locks an arch
+          together.
+        </p>
+        <p>
+          A <b>streak</b> counts months in a row. This month only counts once you log it, but it doesn’t break your
+          streak until the month is over.
+        </p>
+        <p>
+          A gap just means nothing was logged that month. If you invested but forgot to log it, pick that month above
+          and add it. These numbers are what <b>you</b> typed in; the app never connects to your broker.
+        </p>
+        <p>
+          Why it matters: for long-term investing, <b>showing up every month</b> usually matters more than picking the
+          perfect investment.
+        </p>
+      </Explain>
+    </Card>
+  )
+}
+
 export function Money() {
   const { data, error, setData } = useApi(api.holdings)
+  const wall = useApi(api.wall)
   return (
     <div>
       <PageHeader
         folio="03"
         title="My Money"
-        intro="Three steps: tell the app what you own, see whether you’re on track, and get a split for the money you’re adding this month."
+        intro="Four steps: tell the app what you own, see whether you’re on track, split this month’s money, and lay this month’s stone on your wall."
       />
       {error && <ErrorText>{error}</ErrorText>}
       {data && (
@@ -315,7 +464,9 @@ export function Money() {
           <StaleBanner items={Object.entries(data.freshness).map(([sym, f]) => ({ label: sym, f }))} />
           <HoldingsEditor data={data} onSaved={setData} />
           <DriftTable data={data} />
-          <Contribution />
+          <Contribution wall={wall.data} onWall={wall.setData} />
+          {wall.data && <WallCard data={wall.data} onWall={wall.setData} />}
+          {wall.error && <ErrorText>{wall.error}</ErrorText>}
         </div>
       )}
     </div>
