@@ -1,15 +1,17 @@
 # Keystone Ledger: conventions for Claude Code
 
-A personal, single-user, **paper-first** stock decision aid. Local only. Educational, not advice.
+A personal, single-user, long-term investing dashboard. Local only. Educational, not advice.
 The full build plan and phase status are in `docs/PLAN.md`. Read it before starting a phase.
 
 ## Non-negotiables
 - **Never fabricate data.** Every number shown comes from a fetched source and carries `source` +
   `fetched_at` + `last_day`. Missing or stale data is flagged (`Freshness.stale`) and shown loudly.
   Never forward-fill, interpolate or "repair" prices (`yfinance` runs with `repair=False`).
-- **Guardrails are code, not UI.** Risk ceilings live in `config.py` (`HARD_MAX_*`) and in schema
-  validators. Config is frozen at startup, and no API writes it. Every config change is audited
-  (`config_audit`). Don't add a runtime setter for any risk parameter.
+- **Guardrails are code, not UI.** Limits live in `config.py` (`HARD_MAX_*`) and schema validators
+  (no stock above 10%; targets always sum to 100%). Config is frozen at startup and no API writes
+  it. Every config change is audited (`config_audit`). Don't add runtime setters for plan settings.
+- **Scope.** Long-term plan only: mood, plan, contribution, holdings/drift, charts, Learn. No swing
+  trading, backtests, auto-trading or broker connections.
 - **No paid services, no keys without asking.** Ask the owner before adding any dependency that
   needs an account, API key or payment.
 - **Security first.** Bind 127.0.0.1. No CORS middleware (same-origin only). Every state-changing
@@ -21,15 +23,20 @@ The full build plan and phase status are in `docs/PLAN.md`. Read it before start
 ```
 backend/src/keystone_ledger/
   settings.py        env/.env deployment knobs (KL_*)
-  config.py          trading rules (TOML), frozen + hard ceilings
+  config.py          plan rules (TOML), frozen + hard ceilings
   app.py, serve.py   app factory; entry point (loopback check, setup token)
   api/               routes_*.py, deps.py (auth/CSRF deps), security.py (ASGI middleware)
-  core/              auth.py (argon2id, sessions, lockout), config_audit.py, logging.py
-  data/              base.py (provider Protocols + validation), *_provider.py, service.py (cache)
+  core/              auth.py, config_audit.py, logging.py; pure engine: mood.py, screen.py,
+                     plan.py (targets, drift, contribution), chart.py (SMA, crossovers, big moves)
+  planner.py         glue: reads caches, calls the pure engine (no provider calls unless `refresh*`)
+  learn.py           validates content/learn.json
+  data/              base.py (Protocols + validation), *_provider.py, service.py (price cache),
+                     fundamentals.py (SEC cache), sec_provider.py (EDGAR frames API)
   db/                models.py (SQLAlchemy), session.py, types.py (UTCDateTime)
 backend/tests/       pytest; fakes in conftest.py, no network in tests
 frontend/src/        React + TS + Tailwind v4; api.ts is the only fetch() caller
 config/              keystone.example.toml (must equal defaults; a test enforces it)
+content/learn.json   glossary, FAQ, links (https only, each verified before adding)
 ```
 
 ## Conventions
@@ -39,11 +46,15 @@ config/              keystone.example.toml (must equal defaults; a test enforces
   weekday math, for sessions, holidays and early closes.
 - New data source = a class satisfying `PriceProvider` / `MacroProvider` + a branch in
   `data/registry.py` + tests with a fake transport. Pace requests with `MinIntervalLimiter`.
-- Indicators/engine (Phase 2+) are pure functions on DataFrames: no I/O, no clock reads, so
-  they're testable against known values and safe for backtests (no look-ahead).
-- Tests: no network. Use `FakeClock`, `FakePriceProvider` and `FakeMacroProvider` from `conftest.py`.
+- SQLite: never hold a write in the request session while calling a provider (use
+  `transaction(...)` and commit first); the auth dependency touches sessions in its own transaction.
+- Engine code (core/mood, screen, plan, chart) is pure functions: no I/O, no clock reads, so it's
+  testable against known values; chart events use only data up to each day (no look-ahead).
+- Tests: no network. Use the fakes in `conftest.py` (`FakeClock`, `FakePriceProvider`,
+  `FakeMacroProvider`, `FakeFundamentalsProvider`).
 - Keep commits small, with imperative messages.
 
 ## Commands
 `make install` · `make run` (build UI + serve :8787) · `make dev` (API :8787 + Vite :5173) ·
-`make check` (ruff, mypy --strict, eslint, tsc, pytest, vitest, pip-audit, npm audit)
+`make check` (ruff, mypy --strict, eslint, tsc, pytest, vitest, pip-audit, npm audit).
+The owner is on Windows: keep `tasks.ps1` in sync with the Makefile and avoid POSIX-only code paths.
