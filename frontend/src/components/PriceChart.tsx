@@ -7,19 +7,26 @@ import {
   createChart,
   createSeriesMarkers,
   LineSeries,
+  LineStyle,
 } from 'lightweight-charts'
 import { useEffect, useRef, useState } from 'react'
 import type { ChartEvent, ChartPoint, EventKind } from '../api'
 import { fmtDay, fmtMoney } from '../format'
 
+/** CSS custom properties per role; values are validated per theme in index.css. */
 export const EVENT_COLOR: Record<EventKind, string> = {
-  golden_cross: '#fbbf24',
-  death_cross: '#a78bfa',
-  big_up: '#34d399',
-  big_down: '#fb7185',
+  golden_cross: 'var(--ev-golden)',
+  death_cross: 'var(--ev-death)',
+  big_up: 'var(--ev-up)',
+  big_down: 'var(--ev-down)',
 }
-
-const LINE = { price: '#22d3ee', sma50: '#f59e0b', sma200: '#e879f9' }
+const EVENT_VAR: Record<EventKind, string> = {
+  golden_cross: '--ev-golden',
+  death_cross: '--ev-death',
+  big_up: '--ev-up',
+  big_down: '--ev-down',
+}
+const LINE = { price: 'var(--chart-price)', sma50: 'var(--chart-sma50)', sma200: 'var(--chart-sma200)' }
 
 function cssVar(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -52,12 +59,24 @@ export function PriceChart({
   useEffect(() => {
     const host = el.current
     if (!host || points.length === 0) return
-    const text = cssVar('--muted', '#8b95ad')
-    const line = cssVar('--line', '#222c45')
+    // The canvas needs concrete colors: read the active theme's validated values.
+    const text = cssVar('--muted', '#5c584c')
+    const grid = cssVar('--rule', 'rgba(0,0,0,0.08)')
+    const line = cssVar('--line', '#cdbf9d')
+    const color = {
+      price: cssVar('--chart-price', '#2a62b8'),
+      sma50: cssVar('--chart-sma50', '#d4612a'),
+      sma200: cssVar('--chart-sma200', '#178f68'),
+    }
     const chart = createChart(host, {
       autoSize: true,
-      layout: { background: { color: 'transparent' }, textColor: text, attributionLogo: true },
-      grid: { vertLines: { color: line }, horzLines: { color: line } },
+      layout: {
+        background: { color: 'transparent' },
+        textColor: text,
+        fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+        attributionLogo: true,
+      },
+      grid: { vertLines: { color: grid }, horzLines: { color: grid } },
       rightPriceScale: { borderColor: line },
       timeScale: { borderColor: line },
       crosshair: { mode: CrosshairMode.Normal },
@@ -66,9 +85,9 @@ export function PriceChart({
       localization: { locale: 'en-US' },
     })
     chartRef.current = chart
-    const price = chart.addSeries(LineSeries, { color: LINE.price, lineWidth: 2, title: 'Price' })
-    const s50 = chart.addSeries(LineSeries, { color: LINE.sma50, lineWidth: 2, title: '50-day', priceLineVisible: false, lastValueVisible: false })
-    const s200 = chart.addSeries(LineSeries, { color: LINE.sma200, lineWidth: 2, title: '200-day', priceLineVisible: false, lastValueVisible: false })
+    const price = chart.addSeries(LineSeries, { color: color.price, lineWidth: 2, title: 'Price' })
+    const s50 = chart.addSeries(LineSeries, { color: color.sma50, lineWidth: 2, lineStyle: LineStyle.Dashed, title: '50-day', priceLineVisible: false, lastValueVisible: false })
+    const s200 = chart.addSeries(LineSeries, { color: color.sma200, lineWidth: 2, title: '200-day', priceLineVisible: false, lastValueVisible: false })
     price.setData(points.map((p) => ({ time: p.day, value: p.close })))
     s50.setData(points.flatMap((p) => (p.sma50 === null ? [] : [{ time: p.day, value: p.sma50 }])))
     s200.setData(points.flatMap((p) => (p.sma200 === null ? [] : [{ time: p.day, value: p.sma200 }])))
@@ -76,8 +95,9 @@ export function PriceChart({
     const markers: SeriesMarker<Time>[] = events.map((e) => ({
       time: e.day,
       position: e.kind === 'big_down' || e.kind === 'death_cross' ? 'belowBar' : 'aboveBar',
-      shape: 'circle',
-      color: EVENT_COLOR[e.kind],
+      // Shape is a second cue beside color: arrows for big days, circles for crossovers.
+      shape: e.kind === 'big_up' ? 'arrowUp' : e.kind === 'big_down' ? 'arrowDown' : 'circle',
+      color: cssVar(EVENT_VAR[e.kind], '#888888'),
       size: 2,
       text: e.label,
     }))
@@ -119,21 +139,24 @@ export function PriceChart({
   return (
     <div>
       <div className="mb-2 flex flex-wrap gap-4 text-xs">
-        <span><span style={{ color: LINE.price }}>━</span> Price (closing price each day)</span>
-        <span><span style={{ color: LINE.sma50 }}>━</span> 50-day average (short-term trend, ~2½ months)</span>
-        <span><span style={{ color: LINE.sma200 }}>━</span> 200-day average (long-term trend, ~10 months)</span>
+        <span><span style={{ color: LINE.price }}>━━</span> Price (closing price each day)</span>
+        <span><span style={{ color: LINE.sma50 }}>╍╍</span> 50-day average (short-term trend, ~2½ months)</span>
+        <span><span style={{ color: LINE.sma200 }}>━━</span> 200-day average (long-term trend, ~10 months)</span>
       </div>
       <div className="relative">
         <div ref={el} className="h-[420px] w-full" data-testid="price-chart" />
         {hover && (
-          <div className="pointer-events-none absolute left-2 top-2 z-10 max-w-sm rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3 text-xs shadow-xl">
+          <div className="pointer-events-none absolute left-2 top-2 z-10 max-w-sm border-2 border-[var(--line)] bg-[var(--panel)] p-3 text-xs shadow-[4px_4px_0_0_var(--line)]">
             <div className="font-semibold">{fmtDay(hover.day)}</div>
             <div>Price: {fmtMoney(hover.close)}</div>
             <div>50-day average: {fmtMoney(hover.sma50)}</div>
             <div>200-day average: {hover.sma200 === null ? 'not enough history yet' : fmtMoney(hover.sma200)}</div>
             {hover.event && (
               <div className="mt-2 border-t border-[var(--line)] pt-2">
-                <div className="font-bold" style={{ color: EVENT_COLOR[hover.event.kind] }}>● {hover.event.label}</div>
+                <div className="font-bold">
+                  <span aria-hidden style={{ color: EVENT_COLOR[hover.event.kind] }}>{hover.event.kind === 'big_up' ? '▲' : hover.event.kind === 'big_down' ? '▼' : '●'}</span>{' '}
+                  {hover.event.label}
+                </div>
                 <p className="mt-1 leading-relaxed">{hover.event.explanation}</p>
               </div>
             )}

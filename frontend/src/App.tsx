@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { type AuthStatus, api, setCsrfToken } from './api'
 import { LoginForm, SetupForm } from './components/AuthForms'
+import { KeystoneLogo } from './components/brand'
 import { Charts } from './pages/Charts'
 import { Home } from './pages/Home'
 import { Learn } from './pages/Learn'
@@ -69,31 +70,32 @@ export default function App() {
   return (
     <SessionContext.Provider value={session}>
       <div className="flex min-h-screen flex-col">
-        <header className="mx-auto w-full max-w-6xl px-4 py-5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-brand-2)]" />
-              <span className="text-lg font-bold tracking-tight">Keystone Ledger</span>
+        <header className="mx-auto w-full max-w-6xl px-4 pt-6 sm:pl-20">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <KeystoneLogo size={42} />
+              <div>
+                <div className="serif text-xl font-bold leading-none tracking-tight sm:text-2xl">Keystone Ledger</div>
+                <div className="eyebrow mt-1 hidden sm:block">Build it stone by stone</div>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <button className="btn btn-ghost px-3 py-1.5 text-sm" aria-label="Toggle theme"
+                title={theme === 'dark' ? 'Switch to Ledger (light paper)' : 'Switch to Blueprint (dark)'}
                 onClick={() => { setTheme(theme === 'dark' ? 'light' : 'dark') }}>
-                {theme === 'dark' ? '☀︎ Light' : '☾ Dark'}
+                {theme === 'dark' ? '▤ Ledger' : '▦ Blueprint'}
               </button>
               {view === 'app' && (
                 <button className="btn btn-ghost px-3 py-1.5 text-sm" onClick={() => void logout()}>
-                  Sign out{username ? ` (${username})` : ''}
+                  Sign out<span className="hidden sm:inline">{username ? ` (${username})` : ''}</span>
                 </button>
               )}
             </div>
           </div>
           {view === 'app' && (
-            <nav aria-label="Main" className="mt-4 flex gap-1 overflow-x-auto">
+            <nav aria-label="Main" className="mt-6 flex gap-1 overflow-x-auto border-b-2 border-[var(--ink)]">
               {PAGES.map((p) => (
-                <a key={p.id} href={`#/${p.id}`} aria-current={page === p.id ? 'page' : undefined}
-                  className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold ${
-                    page === p.id ? 'bg-[var(--panel-2)] text-[var(--color-brand)]' : 'muted hover:bg-[var(--panel-2)]'
-                  }`}>
+                <a key={p.id} href={`#/${p.id}`} aria-current={page === p.id ? 'page' : undefined} className="tab text-sm sm:text-base">
                   {p.label}
                 </a>
               ))}
@@ -101,7 +103,7 @@ export default function App() {
           )}
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-12">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-16 pt-8 sm:pl-20">
           {view === 'loading' && <p className="muted">Loading…</p>}
           {view === 'offline' && (
             <p role="alert" className="text-[var(--color-down)]">
@@ -117,9 +119,11 @@ export default function App() {
           {view === 'app' && page === 'learn' && <Learn />}
         </main>
 
-        <footer className="border-t border-[var(--line)] py-4 text-center text-xs muted">
-          Educational tool, not financial advice. It never connects to a broker or places trades. Every number shows
-          where it came from and when.
+        <footer className="mx-auto w-full max-w-6xl border-t-2 border-[var(--line)] px-4 py-5 text-xs muted sm:pl-20">
+          <div className="flex flex-wrap justify-between gap-2">
+            <span className="serif italic">Keystone Ledger: an educational tool, not financial advice.</span>
+            <span className="font-mono">NEVER CONNECTS TO A BROKER · EVERY NUMBER SHOWS ITS SOURCE</span>
+          </div>
         </footer>
       </div>
     </SessionContext.Provider>

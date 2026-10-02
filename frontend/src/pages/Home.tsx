@@ -1,32 +1,32 @@
 import { api, type Dashboard, type Mood } from '../api'
-import { Card, ErrorText, Explain, PageHeader, StaleBanner } from '../components/ui'
+import { MoodArch } from '../components/brand'
+import { Card, ErrorText, Explain, Figure, PageHeader, StaleBanner } from '../components/ui'
 import { fmtMoney, fmtSignedMoney, fmtSignedPct, gainClass } from '../format'
 import { useApi } from '../useApi'
 
-const MOOD_STYLE: Record<Mood, { emoji: string; label: string; ring: string }> = {
-  green: { emoji: '🟢', label: 'Green', ring: 'border-[var(--color-up)]' },
-  yellow: { emoji: '🟡', label: 'Yellow', ring: 'border-[var(--color-warn)]' },
-  red: { emoji: '🔴', label: 'Red', ring: 'border-[var(--color-down)]' },
-  unknown: { emoji: '⚪', label: 'Not enough data yet', ring: 'border-[var(--line)]' },
+const MOOD_LABEL: Record<Mood, string> = {
+  green: 'Green',
+  yellow: 'Yellow',
+  red: 'Red',
+  unknown: 'Not enough data yet',
 }
 
 export function MoodCard({ d }: { d: Dashboard }) {
-  const s = MOOD_STYLE[d.mood.mood]
   return (
-    <Card className={`border-2 ${s.ring}`}>
-      <div className="muted text-xs font-semibold uppercase tracking-wider">Market mood today</div>
-      <div className="mt-2 flex items-center gap-3">
-        <span className="text-4xl" aria-hidden>
-          {s.emoji}
-        </span>
-        <span className="text-3xl font-bold">{s.label}</span>
+    <Card>
+      <div className="grid items-center gap-6 md:grid-cols-[minmax(0,22rem)_1fr]">
+        <MoodArch mood={d.mood.mood} />
+        <div>
+          <div className="eyebrow">Market mood today</div>
+          <div className="serif mt-1 text-5xl font-bold">{MOOD_LABEL[d.mood.mood]}</div>
+          <p className="serif mt-3 text-xl leading-snug">{d.mood.headline}</p>
+          <ul className="mt-4 space-y-2 text-sm">
+            {d.mood.reasons.map((r) => (
+              <li key={r} className="border-l-2 border-[var(--line)] pl-3">{r}</li>
+            ))}
+          </ul>
+        </div>
       </div>
-      <p className="mt-3 text-lg">{d.mood.headline}</p>
-      <ul className="mt-3 space-y-1 text-sm">
-        {d.mood.reasons.map((r) => (
-          <li key={r}>• {r}</li>
-        ))}
-      </ul>
       <Explain>
         <p>
           This is a <b>weather report</b> for the stock market, not a buy or sell signal. It checks two things:
@@ -42,7 +42,7 @@ export function MoodCard({ d }: { d: Dashboard }) {
           (it went far above 30 in 2008 and in March 2020).
         </p>
         <p>
-          🟢 = going up and calm. 🔴 = going down and scared. 🟡 = anything in between.{' '}
+          The arch has three parts: <b>red</b> on the left (going down and scared), <b>yellow</b> in the middle (anything in between) and <b>green</b> on the right (going up and calm). Today’s part is lit up.{' '}
           <b>For a long-term investor the right move is usually the same in every color: keep adding money on schedule.</b>{' '}
           The color is here so scary headlines don’t surprise you.
         </p>
@@ -66,27 +66,17 @@ export function PortfolioCard({ d }: { d: Dashboard }) {
   }
   return (
     <Card title="Your money">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div>
-          <div className="muted text-xs font-semibold uppercase tracking-wider">Worth today</div>
-          <div className="mt-1 font-mono text-3xl font-bold">{fmtMoney(p.value)}</div>
-        </div>
-        <div>
-          <div className="muted text-xs font-semibold uppercase tracking-wider">Change today</div>
-          <div className={`mt-1 font-mono text-2xl font-bold ${gainClass(p.day_change)}`}>
-            {fmtSignedMoney(p.day_change)}
-          </div>
-          <div className={`text-sm ${gainClass(p.day_change)}`}>{fmtSignedPct(p.day_change_pct)}</div>
-        </div>
-        <div>
-          <div className="muted text-xs font-semibold uppercase tracking-wider">Total gain or loss</div>
-          <div className={`mt-1 font-mono text-2xl font-bold ${gainClass(p.total_change)}`}>
-            {fmtSignedMoney(p.total_change)}
-          </div>
-          <div className={`text-sm ${gainClass(p.total_change)}`}>
+      <div className="grid gap-6 sm:grid-cols-3 sm:divide-x sm:divide-[var(--line)]">
+        <Figure label="Worth today" value={fmtMoney(p.value)}
+          sub={<span className="muted">{p.positions.length} investment(s)</span>} />
+        <Figure className="sm:pl-6" label="Change today"
+          value={<span className={gainClass(p.day_change)}>{fmtSignedMoney(p.day_change)}</span>}
+          sub={<span className={gainClass(p.day_change)}>{fmtSignedPct(p.day_change_pct)}</span>} />
+        <Figure className="sm:pl-6" label="Total gain or loss"
+          value={<span className={gainClass(p.total_change)}>{fmtSignedMoney(p.total_change)}</span>}
+          sub={<span className={gainClass(p.total_change)}>
             {fmtSignedPct(p.total_change_pct)} since you bought (you paid {fmtMoney(p.cost_basis)})
-          </div>
-        </div>
+          </span>} />
       </div>
       {p.missing_prices.length > 0 && (
         <p className="mt-3 text-sm text-[var(--color-warn)]">
@@ -116,6 +106,7 @@ export function Home() {
   return (
     <div>
       <PageHeader
+        folio="01"
         title="Home"
         intro="Your one-glance check-in: how the market feels today and how your money is doing."
         action={

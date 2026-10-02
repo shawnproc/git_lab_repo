@@ -18,8 +18,8 @@ export function LearnView({ data }: { data: LearnData }) {
         {terms.length === 0 && <p className="muted">No match. Try a shorter word.</p>}
         <dl className="grid gap-4 md:grid-cols-2">
           {terms.map((g) => (
-            <div key={g.term} className="rounded-xl border border-[var(--line)] p-4">
-              <dt className="text-lg font-bold">{g.term}</dt>
+            <div key={g.term} className="border-t-4 border-[var(--color-brand-2)] bg-[var(--panel-2)] p-4">
+              <dt className="serif text-xl font-bold">{g.term}</dt>
               <dd className="mt-1">{g.definition}</dd>
               <dd className="mt-2 text-sm"><b>Why it matters to you:</b> {g.why_it_matters}</dd>
               {g.example && <dd className="muted mt-2 text-sm"><b>Example:</b> {g.example}</dd>}
@@ -30,7 +30,7 @@ export function LearnView({ data }: { data: LearnData }) {
       <Card title="Common questions">
         <div className="space-y-2">
           {data.faq.map((f) => (
-            <details key={f.q} className="rounded-xl border border-[var(--line)] px-4 py-3">
+            <details key={f.q} className="explain px-4 py-3">
               <summary className="cursor-pointer font-semibold">{f.q}</summary>
               <p className="mt-2 leading-relaxed">{f.a}</p>
             </details>
@@ -70,6 +70,7 @@ export function Learn() {
   return (
     <div>
       <PageHeader
+        folio="05"
         title="Learn"
         intro="Every word the app uses, explained simply, plus answers to common beginner questions."
       />

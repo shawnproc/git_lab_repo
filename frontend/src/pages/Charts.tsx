@@ -52,8 +52,9 @@ export function Charts({ theme }: { theme: string }) {
   return (
     <div>
       <PageHeader
+        folio="04"
         title="Charts"
-        intro="See how a price has moved over the last 2 years. Colored circles mark moments worth noticing; hover over one (or tap it in the list) for a plain explanation."
+        intro="See how a price has moved over the last 2 years. Circles (●) and arrows (▲▼) mark moments worth noticing. Hover over one, or tap it in the list, for a plain explanation."
         action={
           <label className="text-sm">
             Show me
@@ -79,15 +80,15 @@ export function Charts({ theme }: { theme: string }) {
             <SourceLine f={chart.freshness} />
             <Explain title="How do I read this chart?">
               <p>
-                The <b>blue line</b> is the price at the end of each trading day. The two other lines are{' '}
-                <b>moving averages</b>: the average price over the last 50 days (orange, the short-term trend) and the last
-                200 days (pink, the long-term trend). They smooth out daily noise so you can see the direction.
+                The <b>solid line</b> is the price at the end of each trading day. The two other lines are{' '}
+                <b>moving averages</b>: the average price over the last 50 days (dashed, the short-term trend) and the last
+                200 days (solid green, the long-term trend). They smooth out daily noise so you can see the direction.
               </p>
               <p>The colored circles mark moments worth noticing:</p>
               <ul className="list-disc space-y-1 pl-5">
-                <li><b style={{ color: EVENT_COLOR.golden_cross }}>Golden cross</b>: the short-term line crossed <b>above</b> the long-term line. Recent momentum turned stronger. Usually seen as a good sign, but it shows up late.</li>
-                <li><b style={{ color: EVENT_COLOR.death_cross }}>Death cross</b>: the short-term line crossed <b>below</b> the long-term line. Momentum weakened. Scary name, but it’s often late too, and many stocks recover soon after. Information, not an alarm.</li>
-                <li><b style={{ color: EVENT_COLOR.big_up }}>Big jump</b> / <b style={{ color: EVENT_COLOR.big_down }}>Big drop</b>: a day the price moved much more than usual for this stock (at least 3 times its normal daily move, and at least 3%). Something usually happened, like a profit report or news.</li>
+                <li>● <b style={{ color: EVENT_COLOR.golden_cross }}>Golden cross</b>: the short-term line crossed <b>above</b> the long-term line. Recent momentum turned stronger. Usually seen as a good sign, but it shows up late.</li>
+                <li>● <b style={{ color: EVENT_COLOR.death_cross }}>Death cross</b>: the short-term line crossed <b>below</b> the long-term line. Momentum weakened. Scary name, but it’s often late too, and many stocks recover soon after. Information, not an alarm.</li>
+                <li>▲ <b style={{ color: EVENT_COLOR.big_up }}>Big jump</b> / ▼ <b style={{ color: EVENT_COLOR.big_down }}>Big drop</b>: a day the price moved much more than usual for this stock (at least 3 times its normal daily move, and at least 3%). Something usually happened, like a profit report or news.</li>
               </ul>
               <p>None of these tell you what happens next. For a long-term plan they’re context, not instructions.</p>
             </Explain>
@@ -100,11 +101,12 @@ export function Charts({ theme }: { theme: string }) {
                 {events.map((e) => (
                   <li key={`${e.day}-${e.kind}`}>
                     <button
-                      className={`w-full rounded-lg border p-3 text-left text-sm ${selected === e.day ? 'border-[var(--color-brand)]' : 'border-[var(--line)]'}`}
+                      className={`w-full border-l-4 bg-[var(--panel-2)] p-3 text-left text-sm ${selected === e.day ? 'outline outline-2 outline-[var(--color-brand-2)]' : ''}`}
+                      style={{ borderLeftColor: EVENT_COLOR[e.kind] }}
                       onClick={() => { setSelected(e.day) }}
                     >
                       <div className="flex flex-wrap justify-between gap-2">
-                        <b style={{ color: EVENT_COLOR[e.kind] }}>● {e.label}</b>
+                        <b>{e.kind === 'big_up' ? '▲' : e.kind === 'big_down' ? '▼' : '●'} {e.label}</b>
                         <span className="muted">{fmtDay(e.day)} · price {fmtMoney(e.price)}</span>
                       </div>
                       <p className="mt-1 leading-relaxed">{e.explanation}</p>

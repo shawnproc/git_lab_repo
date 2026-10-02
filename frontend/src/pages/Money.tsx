@@ -1,5 +1,6 @@
 import { type SubmitEvent, useState } from 'react'
 import { api, type ContributionPlan, type Holdings, type HoldingInput } from '../api'
+import { SpiritLevel } from '../components/brand'
 import { Card, ErrorText, Explain, PageHeader, StaleBanner } from '../components/ui'
 import { fmtMoney, fmtPct, fmtShares, fmtSignedMoney, gainClass } from '../format'
 import { errorMessage, useApi } from '../useApi'
@@ -151,25 +152,29 @@ function DriftTable({ data }: { data: Holdings }) {
           : `⚠️ ${String(flagged.length)} item(s) have drifted from your plan. Your monthly money (Step 3) will fix this gradually. No selling needed.`}
       </p>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="muted text-left text-xs">
+        <table className="ledger-table w-full text-sm">
+          <thead className="text-left">
             <tr>
               <th className="py-1 pr-3">Investment</th>
               <th className="py-1 pr-3">Type</th>
               <th className="py-1 pr-3 text-right">Worth now</th>
               <th className="py-1 pr-3 text-right">Your share now</th>
               <th className="py-1 pr-3 text-right">Plan says</th>
+              <th className="py-1 pr-3">Level</th>
               <th className="py-1">Status</th>
             </tr>
           </thead>
           <tbody>
             {data.drift.map((d) => (
-              <tr key={d.symbol} className="border-t border-[var(--line)]">
+              <tr key={d.symbol}>
                 <td className="py-2 pr-3 font-mono font-bold">{d.symbol}</td>
                 <td className="py-2 pr-3">{KIND_LABEL[d.kind]}</td>
                 <td className="py-2 pr-3 text-right font-mono">{fmtMoney(d.actual_value)}</td>
                 <td className="py-2 pr-3 text-right font-mono">{fmtPct(d.actual_pct)}</td>
                 <td className="py-2 pr-3 text-right font-mono">{fmtPct(d.target_pct)}</td>
+                <td className="py-2 pr-3">
+                  {d.kind === 'off_plan' ? <span className="muted text-xs">not in plan</span> : <SpiritLevel diffPp={d.diff_pp} flagged={d.flagged} />}
+                </td>
                 <td className={`py-2 ${d.flagged ? 'text-[var(--color-warn)]' : 'text-[var(--color-up)]'}`}>
                   {d.flagged ? `⚠️ ${d.reason}` : d.reason || '✅ on track'}
                 </td>
@@ -190,6 +195,10 @@ function DriftTable({ data }: { data: Holdings }) {
         <p>
           <b>Percentage points</b> are just the plain difference between two percentages: 45% → 39% is{' '}
           <b>6 percentage points</b> off.
+        </p>
+        <p>
+          The <b>level</b> works like a carpenter’s spirit level. The middle line is your target, and the bubble is where
+          you actually are. Inside the two short lines (±5 points) the bubble stays green; outside, it turns amber.
         </p>
         <p>We flag an investment when it is either:</p>
         <ul className="list-disc pl-5">
@@ -249,14 +258,16 @@ function Contribution() {
       {result && (
         <div className="mt-4">
           <p className="mb-2 font-semibold">Here’s what to buy with your {fmtMoney(result.amount)}:</p>
-          <ol className="space-y-2">
+          <ol className="slip space-y-3 px-4 pb-4">
             {result.allocations.map((a, i) => (
-              <li key={a.symbol} className="panel flex flex-wrap items-baseline justify-between gap-2 p-3">
-                <span>
-                  <span className="muted mr-2">{i + 1}.</span>
-                  Buy <b className="font-mono">{fmtMoney(a.amount)}</b> of <b className="font-mono">{a.symbol}</b>
+              <li key={a.symbol} className="flex flex-wrap items-end">
+                <span className="serif text-lg">
+                  <span className="muted mr-2 font-mono text-sm">{String(i + 1).padStart(2, '0')}</span>
+                  Buy <b className="font-mono">{a.symbol}</b>
                 </span>
-                <span className="muted text-sm">
+                <span className="leader" aria-hidden />
+                <b className="font-mono text-lg">{fmtMoney(a.amount)}</b>
+                <span className="muted w-full pl-8 text-sm">
                   {a.shares !== null && a.price !== null
                     ? `≈ ${fmtShares(a.shares)} shares at about ${fmtMoney(a.price)} each`
                     : 'no current price yet'}
@@ -294,6 +305,7 @@ export function Money() {
   return (
     <div>
       <PageHeader
+        folio="03"
         title="My Money"
         intro="Three steps: tell the app what you own, see whether you’re on track, and get a split for the money you’re adding this month."
       />

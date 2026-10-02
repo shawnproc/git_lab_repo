@@ -15,6 +15,7 @@ vi.mock('lightweight-charts', () => ({
   createSeriesMarkers: () => undefined,
   LineSeries: {},
   CrosshairMode: { Normal: 0 },
+  LineStyle: { Dashed: 2 },
 }))
 
 const authed = { setup_required: false, authenticated: true, username: 'shawn', csrf_token: 'tok' }
@@ -49,8 +50,10 @@ describe('Home', () => {
   it('shows the mood in plain words with an explainer, and portfolio numbers', async () => {
     start('#/home')
     expect(await screen.findByText('Green')).toBeInTheDocument()
-    expect(screen.getByText(/Calm and rising/)).toBeInTheDocument()
-    expect(screen.getAllByText(/What does this mean\?/).length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText(/Calm and rising\. Business as usual/)).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Market mood: green' })).toBeInTheDocument()
+    expect(screen.getByText(/← today/)).toHaveTextContent('Calm and rising')
+    expect(screen.getAllByText(/Margin note: What does this mean\?/).length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText(/nicknamed the “fear gauge”/)).toBeInTheDocument()
     expect(screen.getByText('$3,000.00')).toBeInTheDocument()
     expect(screen.getByText('+$500.00')).toBeInTheDocument()
@@ -85,6 +88,7 @@ describe('My Plan', () => {
     expect(screen.getByText('$4,500.00')).toBeInTheDocument()
     expect(screen.getByText('Sales grew about 14% a year.')).toBeInTheDocument()
     expect(screen.getByText(/pretend/)).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'VTI 45.0%, VXUS 15.0%, MSFT 40.0%' })).toBeInTheDocument()
   })
 
   it('expands a company to show its five questions', async () => {
@@ -116,6 +120,7 @@ describe('My Money', () => {
     const calls: { url: string; init?: RequestInit }[] = []
     start('#/money', { 'PUT /api/holdings': holdings }, calls)
     expect(await screen.findByText(/2 item\(s\) have drifted/)).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '55.0 points above target' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await screen.findByText('✓ Saved')
     const put = calls.find((c) => c.init?.method === 'PUT')

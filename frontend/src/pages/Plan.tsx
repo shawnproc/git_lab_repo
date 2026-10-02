@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api, type Plan as PlanData, type ScreenResult, type TargetRow } from '../api'
+import { FoundationWall } from '../components/brand'
 import { Card, ErrorText, Explain, PageHeader, StatusIcon } from '../components/ui'
 import { fmtMoney, fmtPct, fmtTimestamp } from '../format'
 import { useApi } from '../useApi'
@@ -12,29 +13,26 @@ export const KIND_LABEL = {
 
 function TargetCard({ t, basis }: { t: TargetRow; basis: number }) {
   return (
-    <div className="panel p-4">
+    <div className="border-t-4 bg-[var(--panel-2)] p-4" style={{ borderColor: t.kind === 'core' ? 'var(--stone-core)' : 'var(--stone-pick)' }}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <span className="font-mono text-lg font-bold">{t.symbol}</span>{' '}
+          <span className="serif text-2xl font-bold">{t.symbol}</span>{' '}
           <span className="muted">{t.name !== t.symbol ? t.name : ''}</span>
         </div>
         <span
-          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-            t.kind === 'core'
-              ? 'bg-[color-mix(in_oklab,var(--color-brand)_20%,transparent)]'
-              : 'bg-[color-mix(in_oklab,var(--color-brand-2)_20%,transparent)]'
-          }`}
+          className="eyebrow border px-2 py-0.5"
+          style={{ borderColor: t.kind === 'core' ? 'var(--stone-core)' : 'var(--stone-pick)' }}
         >
           {KIND_LABEL[t.kind]}
         </span>
       </div>
       <div className="mt-2 flex flex-wrap gap-6">
         <div>
-          <div className="muted text-xs">Share of your money</div>
+          <div className="eyebrow">Share of your money</div>
           <div className="font-mono text-2xl font-bold">{fmtPct(t.target_pct)}</div>
         </div>
         <div>
-          <div className="muted text-xs">Dollar amount (of {fmtMoney(basis, false)})</div>
+          <div className="eyebrow">Dollars (of {fmtMoney(basis, false)})</div>
           <div className="font-mono text-2xl font-bold">{fmtMoney(t.target_value)}</div>
         </div>
       </div>
@@ -109,6 +107,14 @@ export function PlanView({ data }: { data: PlanData }) {
           investments yet. Once you do (on <a className="underline" href="#/money">My Money</a>), they use your real total.
         </p>
       )}
+      <Card title="Your plan, built like a wall">
+        <FoundationWall targets={data.targets} />
+        <p className="muted mt-3 text-sm">
+          The bottom row is the foundation: big, steady index funds. The top row is the smaller set of hand-picked
+          companies. Each block’s width shows its share of your money.
+        </p>
+      </Card>
+
       <Card title={`1. Safe foundation (core): ${fmtPct(corePct, 0)} of your money`}>
         <div className="grid gap-4 md:grid-cols-2">
           {core.map((t) => (
@@ -193,6 +199,7 @@ export function Plan() {
   return (
     <div>
       <PageHeader
+        folio="02"
         title="My Plan"
         intro="What your money should be split into, and why. Most of it goes in a steady foundation; a smaller part goes to a few strong companies."
         action={
