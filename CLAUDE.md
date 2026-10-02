@@ -33,6 +33,7 @@ backend/src/keystone_ledger/
   data/              base.py (Protocols + validation), *_provider.py, service.py (price cache),
                      fundamentals.py (SEC cache), sec_provider.py (EDGAR frames API)
   db/                models.py (SQLAlchemy), session.py, types.py (UTCDateTime)
+  core/wall.py       the growing wall (contribution log -> stones, streaks, keystones); pure
 backend/tests/       pytest; fakes in conftest.py, no network in tests
 frontend/src/        React + TS + Tailwind v4; api.ts is the only fetch() caller; pages/ (Home, Plan,
                      Money, Charts, Learn); components/ui.tsx (Explain, StaleBanner, ...)
@@ -58,7 +59,7 @@ content/learn.json   glossary, FAQ, links (https only, each verified before addi
   `Explain` box. Never imply a buy/sell instruction from mood or chart events.
 - **Visual identity (keep it):** two themes, Blueprint (dark, default) and Ledger (light), defined
   as CSS tokens in `frontend/src/index.css`. Masonry motifs live in `components/brand.tsx` (keystone
-  tabs, mood arch, foundation wall, spirit level, stone icons). Fonts are self-hosted via
+  tabs, mood arch, foundation wall, spirit level, stone icons) and `components/GrowingWall.tsx`. Fonts are self-hosted via
   @fontsource (Fraunces, IBM Plex Sans/Mono); never load fonts or assets from a CDN (CSP).
   Chart colors are validated with the dataviz palette validator for both surfaces; re-run it
   after any change, and keep shape (arrows vs circles) as a second cue beside color.

@@ -5,8 +5,9 @@ A personal long-term investing dashboard that runs on your own computer:
 - **Home:** today's market mood (🟢 🟡 🔴) and how your money is doing.
 - **My Plan:** what to own (a steady core of index funds plus up to 6 strong companies), how much
   of each, and why.
-- **My Money:** enter what you own, see whether you're on track, and get a split for this month's
-  money.
+- **My Money:** enter what you own, see whether you're on track, get a split for this month's
+  money, and lay this month's stone on **your wall**. It grows by one stone for every month you
+  invest, and a full year earns a keystone.
 - **Charts:** prices with trend lines, with the important moments circled and explained.
 - **Learn:** every word the app uses, in plain English, plus beginner questions answered.
 
@@ -95,7 +96,8 @@ To stop the app, click the PowerShell window and press **Ctrl + C**.
 3. **My Plan** → click **Update company reports** (it only re-reads them about once a month).
 4. **My Money** → type in this month's amount and click **Show me how to split it**.
 5. Place those buys in your broker's app.
-6. Back on **My Money**, update your shares and click **Save**.
+6. Back on **My Money**, click **I invested … Lay this month's stone**, then update your shares
+   and click **Save**.
 
 Every screen has **💡 What does this mean?** boxes. Click them any time.
 

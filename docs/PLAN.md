@@ -14,6 +14,10 @@ data, educational only.
   Setup runs it automatically. The sandbox couldn't reach the sites, so the links were chosen
   from current search results and are stamped on the owner's machine.
 
+- [x] **The growing wall:** log each month you invest; one stone per month, a row per year,
+      a keystone for a full year, current and best streaks. The numbers are the owner's own
+      entries, never fetched.
+
 ## Rules (all in `config/keystone.toml`)
 | Feature | Rule |
 |---|---|
