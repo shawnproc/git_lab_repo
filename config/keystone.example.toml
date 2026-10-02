@@ -1,0 +1,55 @@
+# Keystone Ledger trading rules. Copy to config/keystone.toml (git-ignored) to customize.
+#
+# * Read once at startup: changes take effect only after a restart.
+# * Every change is recorded (with a diff) in the config_audit table and visible at /api/config.
+# * Hard ceilings are enforced in code: risk_per_trade_pct <= 1.0, position caps <= 10%,
+#   sector cap <= 30%. A file that exceeds them refuses to load.
+
+[account]
+starting_equity = 10000.0
+
+[account.sleeves]
+core_pct = 50.0
+swing_pct = 25.0
+growth_pct = 25.0
+
+[swing]
+risk_per_trade_pct = 1.0         # % of TOTAL account lost if the stop hits
+drawdown_brake_trigger_pct = 8.0 # peak-to-trough drawdown that halves risk
+drawdown_brake_risk_pct = 0.5
+max_position_pct = 10.0
+max_open_positions = 5
+atr_stop_multiple = 2.0
+target_r_multiple = 2.0
+cooloff_after_losses = 2
+cooloff_trading_days = 3
+earnings_exclusion_trading_days = 7
+atr_pct_warn = 4.0               # ⚠️ above this
+atr_pct_ceiling = 6.0            # excluded above this
+
+[growth]
+max_holdings = 6
+max_position_pct = 8.0
+
+[portfolio]
+max_sector_pct = 30.0
+
+[universe]
+include_sp500 = true
+etfs = ["SPY", "VTI", "VOO", "SCHD", "VIG", "QQQ", "IWM", "VXUS", "BND"]
+min_price = 10.0
+min_avg_dollar_volume = 20000000.0
+avg_volume_days = 20
+
+[regime]
+benchmark = "SPY"
+vix_yellow = 20.0
+vix_red = 30.0
+breadth_yellow_pct = 50.0
+breadth_red_pct = 30.0
+
+[data]
+price_provider = "yfinance"
+macro_provider = "fred_csv"
+history_years = 12
+max_requests_per_second = 1.0

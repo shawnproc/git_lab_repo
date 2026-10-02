@@ -1,0 +1,128 @@
+"""SQLite schema. All access goes through the SQLAlchemy ORM / Core (parameterized queries only)."""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+
+from sqlalchemy import (
+    Date,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from keystone_ledger.db.types import UTCDateTime
+
+SCHEMA_VERSION = 1
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class SchemaMeta(Base):
+    __tablename__ = "schema_meta"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(String(256))
+
+
+# --- auth -------------------------------------------------------------------------------------
+
+
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    password_changed_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class AuthSession(Base):
+    """Server-side session. Only a SHA-256 of the cookie token is stored, never the token itself."""
+
+    __tablename__ = "auth_sessions"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    csrf_token: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    last_seen_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class LoginAttempt(Base):
+    __tablename__ = "login_attempts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(64))
+    client_ip: Mapped[str] = mapped_column(String(64))
+    at: Mapped[datetime] = mapped_column(UTCDateTime())
+    success: Mapped[bool] = mapped_column()
+
+    __table_args__ = (Index("ix_login_attempts_at", "at"),)
+
+
+# --- audit ------------------------------------------------------------------------------------
+
+
+class ConfigAudit(Base):
+    __tablename__ = "config_audit"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    at: Mapped[datetime] = mapped_column(UTCDateTime())
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(32))  # "startup"
+    config_json: Mapped[str] = mapped_column(Text)
+    diff_json: Mapped[str] = mapped_column(Text)
+
+
+class SecurityEvent(Base):
+    __tablename__ = "security_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    at: Mapped[datetime] = mapped_column(UTCDateTime())
+    kind: Mapped[str] = mapped_column(String(64))
+    detail: Mapped[str] = mapped_column(Text, default="")
+
+
+# --- market data cache ------------------------------------------------------------------------
+
+
+class PriceBar(Base):
+    __tablename__ = "price_bars"
+    symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    open: Mapped[float] = mapped_column(Float)
+    high: Mapped[float] = mapped_column(Float)
+    low: Mapped[float] = mapped_column(Float)
+    close: Mapped[float] = mapped_column(Float)
+    adj_close: Mapped[float] = mapped_column(Float)
+    volume: Mapped[float] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String(32))
+    fetched_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class MacroObservation(Base):
+    __tablename__ = "macro_observations"
+    series_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    value: Mapped[float] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String(32))
+    fetched_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class FetchLog(Base):
+    """One row per provider call: what we asked for, what we got, and whether it failed."""
+
+    __tablename__ = "fetch_log"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    dataset: Mapped[str] = mapped_column(String(16))  # "prices" | "macro"
+    key: Mapped[str] = mapped_column(String(32))  # symbol or series id
+    provider: Mapped[str] = mapped_column(String(32))
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    ok: Mapped[bool] = mapped_column()
+    rows: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str] = mapped_column(Text, default="")
+
+    __table_args__ = (Index("ix_fetch_log_key", "dataset", "key", "started_at"),)
