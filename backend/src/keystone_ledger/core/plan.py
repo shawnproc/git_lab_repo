@@ -213,10 +213,16 @@ def split_contribution(
 
     unpriced = [s for s, d in dollars.items() if d > 0 and s not in prices]
     if fractional:
+        cents = {s: round(d * 100) for s, d in dollars.items() if d >= 0.005}
+        # Rounding each buy to the cent can drift by a cent or two; give the difference to the
+        # biggest buy so the split adds up to exactly what was typed.
+        if cents:
+            biggest = max(cents, key=lambda s: cents[s])
+            cents[biggest] += round(amount * 100) - sum(cents.values())
         allocs = [
-            Allocation(s, round(d, 2), round(d / prices[s], 4) if s in prices else None,
+            Allocation(s, c / 100, round(c / 100 / prices[s], 4) if s in prices else None,
                        prices.get(s))
-            for s, d in dollars.items() if d >= 0.005
+            for s, c in cents.items()
         ]  # fmt: skip
         spent = sum(a.amount for a in allocs)
         note = (

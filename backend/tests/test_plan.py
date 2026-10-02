@@ -130,3 +130,14 @@ def test_drift_says_not_owned_yet() -> None:
     rows = {r.symbol: r for r in drift(targets, s.positions, s.value, DriftConfig())}
     assert rows["VXUS"].flagged
     assert rows["VXUS"].reason == "you don't own any yet"
+
+
+def test_fractional_split_adds_up_to_the_cent() -> None:
+    three = [
+        Target("A", "core", 100 / 3, ""),
+        Target("B", "core", 100 / 3, ""),
+        Target("C", "stock", 100 / 3, ""),
+    ]
+    plan = split_contribution(500, three, {}, {}, True, 0)
+    assert round(sum(a.amount for a in plan.allocations), 2) == 500.0
+    assert plan.leftover == 0
