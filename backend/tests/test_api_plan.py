@@ -40,8 +40,10 @@ def test_plan_after_refresh(authed: TestClient) -> None:
     assert sum(t["target_pct"] for t in body["targets"]) == pytest.approx(100)
     assert body["basis_is_reference"] is True
     assert targets["VTI"]["target_value"] == pytest.approx(5100.0)
-    assert "SEC filings" in targets["MSFT"]["why"]
-    assert "CRSP US Total Market" in targets["VTI"]["why"]
+    assert targets["VTI"]["name"] == "Vanguard Morningstar Total Stock Market ETF"
+    assert targets["MSFT"]["name"] == "MSFT Corp"
+    assert "official SEC reports" in targets["MSFT"]["why"]
+    assert "Morningstar US Total Market Index" in targets["VTI"]["why"]
     assert body["fundamentals"]["stale"] is False
     screened = {r["symbol"]: r for r in body["screen"]}
     assert len(screened) == 40
@@ -118,8 +120,12 @@ def test_chart(authed: TestClient) -> None:
     assert authed.get("/api/chart/^GSPC").status_code == 200
 
 
-def test_learn(authed: TestClient) -> None:
+def test_learn_hides_unverified_links(authed: TestClient) -> None:
     body = authed.get("/api/learn").json()
-    assert body["glossary"] and body["faq"]
-    for link in body["links"]:
-        assert link["url"].startswith("https://")
+    assert len(body["glossary"]) >= 30
+    assert body["faq"]
+    assert body["links"] == []  # none stamped yet in the repo copy
+    assert body["pending_links"] >= 10
+    terms = {g["term"] for g in body["glossary"]}
+    for word in ("VIX (the “fear gauge”)", "VTI", "VXUS", "Percentage point", "Death cross"):
+        assert word in terms

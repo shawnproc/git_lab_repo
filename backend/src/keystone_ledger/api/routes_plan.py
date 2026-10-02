@@ -19,7 +19,7 @@ from keystone_ledger.data.base import SYMBOL_RE, validate_symbol
 from keystone_ledger.data.fundamentals import FundamentalsStatus
 from keystone_ledger.data.service import Freshness
 from keystone_ledger.db.session import transaction
-from keystone_ledger.learn import LearnContent, load_learn
+from keystone_ledger.learn import LearnOut, for_display, load_learn
 
 router = APIRouter(prefix="/api", tags=["plan"])
 
@@ -63,6 +63,7 @@ def refresh_market(state: StateDep, db: DbDep, p: CsrfPrincipalDep) -> Dashboard
 @dataclass(frozen=True)
 class TargetOut:
     symbol: str
+    name: str
     kind: str
     target_pct: float
     target_value: float
@@ -78,10 +79,10 @@ class PlanOut:
     basis_is_reference: bool
 
 
-def _targets_out(targets: list[Target], basis: float) -> list[TargetOut]:
+def _targets_out(targets: list[Target], basis: float, names: dict[str, str]) -> list[TargetOut]:
     return [
-        TargetOut(t.symbol, t.kind, round(t.target_pct, 4), round(t.target_pct / 100 * basis, 2),
-                  t.why)
+        TargetOut(t.symbol, names.get(t.symbol, t.symbol), t.kind, round(t.target_pct, 4),
+                  round(t.target_pct / 100 * basis, 2), t.why)
         for t in targets
     ]  # fmt: skip
 
@@ -89,16 +90,21 @@ def _targets_out(targets: list[Target], basis: float) -> list[TargetOut]:
 @router.get("/plan", response_model=PlanOut)
 def plan(state: StateDep, db: DbDep, _p: PrincipalDep) -> PlanOut:
     v = state.planner.plan(db)
+    names = {f.symbol: f.name or f.symbol for f in state.config.plan.core_funds}
+    names |= {r.symbol: r.company for r in v.screen}
     return PlanOut(
-        _targets_out(v.targets, v.basis_value), v.screen, v.fundamentals, v.basis_value,
+        _targets_out(v.targets, v.basis_value, names), v.screen, v.fundamentals, v.basis_value,
         v.basis_is_reference,
     )  # fmt: skip
 
 
 @router.post("/plan/refresh", response_model=PlanOut)
 def refresh_plan(state: StateDep, db: DbDep, p: CsrfPrincipalDep) -> PlanOut:
-    """Refresh SEC fundamentals if older than `fundamentals_max_age_days` (no-op otherwise)."""
+    """Refresh SEC fundamentals if older than `fundamentals_max_age_days` (no-op otherwise),
+    then make sure every planned symbol has a price, so dollar/share amounts can show."""
     state.fundamentals.refresh(list(state.config.plan.candidates))
+    for sym in state.planner.plan_symbols(db):
+        state.market.refresh_bars(sym)
     return plan(state, db, p)
 
 
@@ -230,9 +236,9 @@ def chart(
 # --- learn -------------------------------------------------------------------------------------
 
 
-@router.get("/learn", response_model=LearnContent)
-def learn(_p: PrincipalDep) -> LearnContent:
+@router.get("/learn", response_model=LearnOut)
+def learn(_p: PrincipalDep) -> LearnOut:
     try:
-        return load_learn()
+        return for_display(load_learn())
     except ValueError as exc:
         raise HTTPException(500, f"content/learn.json is invalid: {exc}") from exc
