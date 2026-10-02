@@ -55,6 +55,7 @@ class _Frozen(BaseModel):
 
 class CoreFund(_Frozen):
     symbol: str
+    name: str = Field(default="", max_length=120)
     weight_pct: float = Field(gt=0, le=100)
     why: str = Field(default="", max_length=600)
 
@@ -70,20 +71,23 @@ class CoreFund(_Frozen):
 DEFAULT_CORE = (
     CoreFund(
         symbol="VTI",
+        name="Vanguard Morningstar Total Stock Market ETF",
         weight_pct=45.0,
         why=(
-            "Vanguard Total Stock Market ETF tracks the CRSP US Total Market Index, so one fund "
-            "owns essentially every listed US company. It's the foundation: broad, cheap and "
-            "never dependent on any single pick being right."
+            "One fund that owns a small piece of nearly every public company in the US, big and "
+            "small (it follows the Morningstar US Total Market Index, formerly called CRSP). "
+            "It's the foundation of the plan: you don't have to pick winners, because you own "
+            "them all."
         ),
     ),
     CoreFund(
         symbol="VXUS",
+        name="Vanguard Total International Stock ETF",
         weight_pct=15.0,
         why=(
-            "Vanguard Total International Stock ETF tracks the FTSE Global All Cap ex US Index: "
-            "thousands of companies outside the US. It spreads your bet beyond one country's "
-            "economy and currency."
+            "One fund that owns thousands of companies outside the US, in places like Japan, "
+            "Europe and Canada (it follows the FTSE Global All Cap ex US Index). It protects you "
+            "if the US has a slow decade while other countries do well."
         ),
     ),
 )

@@ -138,15 +138,21 @@ def drift(
             continue
         actual_pct = actual_value / total_value * 100
         diff = actual_pct - t.target_pct
-        reasons = []
-        if abs(diff) > cfg.max_abs_pp:
-            reasons.append(f"{abs(diff):.1f} points {'over' if diff > 0 else 'under'} target")
         rel = abs(diff) / t.target_pct * 100 if t.target_pct > 0 else 0.0
-        if rel > cfg.max_relative_pct:
-            reasons.append(f"{rel:.0f}% off its own target")
+        off_abs = abs(diff) > cfg.max_abs_pp
+        off_rel = rel > cfg.max_relative_pct
+        reason = ""
+        if actual_value == 0:
+            reason = "you don't own any yet"
+        elif off_abs or off_rel:
+            side = "above" if diff > 0 else "below"
+            more = "more" if diff > 0 else "less"
+            reason = f"{abs(diff):.1f} percentage points {side} its target"
+            if off_rel:
+                reason += f" (about {rel:.0f}% {more} than planned)"
         rows.append(
             DriftRow(t.symbol, t.kind, t.target_pct, actual_pct, diff, target_value,
-                     actual_value, bool(reasons), "; ".join(reasons))
+                     actual_value, off_abs or off_rel, reason)
         )  # fmt: skip
     for p in positions:
         if p.symbol in target_syms:
@@ -154,7 +160,7 @@ def drift(
         pct = p.value / total_value * 100 if p.value is not None and total_value > 0 else None
         rows.append(
             DriftRow(p.symbol, "off_plan", 0.0, pct, pct, 0.0, p.value, True,
-                     "not in your plan")
+                     "not part of your plan (that's okay; it just isn't counted toward a target)")
         )  # fmt: skip
     return rows
 
@@ -213,7 +219,12 @@ def split_contribution(
             for s, d in dollars.items() if d >= 0.005
         ]  # fmt: skip
         spent = sum(a.amount for a in allocs)
-        note = f"No price for {', '.join(unpriced)}: shares not shown." if unpriced else ""
+        note = (
+            f"No current price for {', '.join(unpriced)} yet, so share counts aren't shown. "
+            'Click "Refresh prices" first.'
+            if unpriced
+            else ""
+        )
         return ContributionPlan(amount, allocs, round(amount - spent, 2), note)
 
     shares = {s: math.floor(d / prices[s]) for s, d in dollars.items() if s in prices}
@@ -234,7 +245,7 @@ def split_contribution(
         Allocation(s, round(n * prices[s], 2), float(n), prices[s])
         for s, n in shares.items() if n > 0
     ]  # fmt: skip
-    note = "Whole shares only; the leftover stays as cash."
+    note = "Whole shares only, so a little cash is left over. Keep it for next month."
     if unpriced:
-        note += f" No price for {', '.join(unpriced)}, so nothing is allocated there."
+        note += f" No current price for {', '.join(unpriced)} yet, so nothing goes there."
     return ContributionPlan(amount, allocs, round(left, 2), note)

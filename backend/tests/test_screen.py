@@ -114,8 +114,9 @@ def test_screen_ranks_caps_sector_and_explains() -> None:
     assert not by["ORCL"].qualifies and not by["NKE"].qualifies and not by["XOM"].qualifies
     assert by["ZZZ"].note == "no SEC filer found"
     why = by["MSFT"].why
-    assert "14.0% a year from 2022 to 2025" in why
-    assert "SEC filings" in why
+    assert "about 14% a year from 2022 to 2025" in why
+    assert "official SEC reports" in why
+    assert "44¢ of every $1 of sales" in why
     assert 2 <= len([p for p in why.split(". ") if p]) <= 3  # 2-3 sentences
     assert by["AAPL"].why == ""
 
@@ -127,3 +128,19 @@ def test_screen_respects_max_stocks() -> None:
 
 def test_all_fixture_companies_have_known_shape() -> None:
     assert set(SECTORS) <= set(COMPANIES)
+
+
+def test_check_wording_is_plain() -> None:
+    checks = run_checks(compute_metrics(facts_for("MSFT"), YEARS, 3), CFG)
+    assert [c.label for c in checks] == [
+        "Are sales growing?",
+        "Is it profitable?",
+        "Is profit holding up?",
+        "Does real cash come in?",
+        "Is the debt manageable?",
+    ]
+    by = {c.key: c.detail for c in checks}
+    assert "From every $1 of sales it keeps 44¢" in by["margin_level"]
+    assert "went from 42¢ two years ago to 44¢ now: holding up" in by["margin_trend"]
+    assert "less than a year of profit" in by["debt"]
+    assert "billion left over" in by["fcf"]

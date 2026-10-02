@@ -130,12 +130,17 @@ def _pct(x: float) -> str:
     return f"{x * 100:.1f}%"
 
 
+def _cents(x: float) -> str:
+    """0.442 -> '44¢' (share of each sales dollar)."""
+    return f"{x * 100:.0f}¢"
+
+
 def _money(x: float) -> str:
     sign = "-" if x < 0 else ""
     x = abs(x)
-    for unit, div in (("T", 1e12), ("B", 1e9), ("M", 1e6)):
+    for unit, div in (("trillion", 1e12), ("billion", 1e9), ("million", 1e6)):
         if x >= div:
-            return f"{sign}${x / div:.1f}{unit}"
+            return f"{sign}${x / div:.1f} {unit}"
     return f"{sign}${x:,.0f}"
 
 
@@ -143,75 +148,85 @@ def _ok(ok: bool) -> Status:
     return "pass" if ok else "fail"
 
 
+NOT_REPORTED = (
+    "The company's official reports don't include this number in a form we can read, "
+    "so we skip this test instead of guessing."
+)
+
+
 def run_checks(m: Metrics, cfg: ScreenConfig) -> tuple[Check, ...]:
+    """Five yes/no tests, each worded as a plain question with a plain answer."""
     checks: list[Check] = []
     na: Status = "unavailable"
+    yrs = cfg.revenue_years
+
+    q = "Are sales growing?"
     if m.revenue_cagr is None:
-        checks.append(Check("revenue_growth", "Revenue growth", na, "Not enough filed years."))
+        checks.append(Check("revenue_growth", q, na, f"Needs {yrs + 1} years of reports. "
+                            + NOT_REPORTED))  # fmt: skip
     else:
         ok = m.revenue_cagr * 100 >= cfg.min_revenue_cagr_pct
         checks.append(
-            Check(
-                "revenue_growth",
-                "Revenue growth",
-                _ok(ok),
-                f"{_pct(m.revenue_cagr)}/yr over {cfg.revenue_years} years "
-                f"(need ≥ {cfg.min_revenue_cagr_pct:g}%).",
-            )
-        )
+            Check("revenue_growth", q, _ok(ok),
+                  f"Sales grew about {_pct(m.revenue_cagr)} a year over the last {yrs} years. "
+                  f"We look for at least {cfg.min_revenue_cagr_pct:g}% a year.")
+        )  # fmt: skip
+
+    q = "Is it profitable?"
     if m.operating_margin is None:
-        checks.append(Check("margin_level", "Operating margin", na, "Operating income not filed."))
+        checks.append(Check("margin_level", q, na, NOT_REPORTED))
     else:
         ok = m.operating_margin * 100 >= cfg.min_operating_margin_pct
         checks.append(
-            Check(
-                "margin_level",
-                "Operating margin",
-                _ok(ok),
-                f"{_pct(m.operating_margin)} (need ≥ {cfg.min_operating_margin_pct:g}%).",
-            )
-        )
+            Check("margin_level", q, _ok(ok),
+                  f"From every $1 of sales it keeps {_cents(m.operating_margin)} as profit "
+                  f"(before taxes). We look for at least {cfg.min_operating_margin_pct:g}¢.")
+        )  # fmt: skip
+
+    q = "Is profit holding up?"
     if m.operating_margin is None or m.operating_margin_prior is None:
-        checks.append(Check("margin_trend", "Margin trend", na, "Need margins two years apart."))
+        checks.append(Check("margin_trend", q, na, NOT_REPORTED))
     else:
         delta_pp = (m.operating_margin - m.operating_margin_prior) * 100
         ok = delta_pp >= -cfg.margin_trend_tolerance_pp
+        verdict = "holding up" if ok else "shrinking"
         checks.append(
-            Check(
-                "margin_trend",
-                "Margin trend",
-                _ok(ok),
-                f"{delta_pp:+.1f} points vs two years earlier "
-                f"(allowed to slip {cfg.margin_trend_tolerance_pp:g}).",
-            )
-        )
+            Check("margin_trend", q, _ok(ok),
+                  f"Profit per $1 of sales went from {_cents(m.operating_margin_prior)} two "
+                  f"years ago to {_cents(m.operating_margin)} now: {verdict}.")
+        )  # fmt: skip
+
+    q = "Does real cash come in?"
     if m.fcf is None:
-        checks.append(Check("fcf", "Free cash flow", na, "Cash flow or capex not filed."))
+        checks.append(Check("fcf", q, na, NOT_REPORTED))
     else:
         ok = m.fcf > 0 or not cfg.require_positive_fcf
-        checks.append(
-            Check(
-                "fcf",
-                "Free cash flow",
-                _ok(ok),
-                f"{_money(m.fcf)} (operating cash flow minus capital spending).",
-            )
+        result = (
+            f"it had {_money(m.fcf)} left over"
+            if m.fcf > 0
+            else f"it came up {_money(abs(m.fcf))} short"
         )
+        checks.append(
+            Check("fcf", q, _ok(ok),
+                  f"After paying to run the business and buy equipment, {result} last year.")
+        )  # fmt: skip
+
+    q = "Is the debt manageable?"
+    limit = cfg.max_debt_to_operating_income
     if m.operating_income is not None and m.operating_income <= 0:
-        checks.append(Check("debt", "Debt load", "fail", "No operating profit to cover debt."))
+        checks.append(Check("debt", q, "fail", "It made no profit last year, so it has nothing "
+                            "to pay its debt down with."))  # fmt: skip
     elif m.debt_to_operating_income is None:
-        checks.append(Check("debt", "Debt load", na, "Long-term debt not filed."))
+        checks.append(Check("debt", q, na, NOT_REPORTED))
     else:
-        ok = m.debt_to_operating_income <= cfg.max_debt_to_operating_income
+        ok = m.debt_to_operating_income <= limit
+        years = m.debt_to_operating_income
+        span = "less than a year" if years < 1 else f"about {years:.1f} years"
         checks.append(
-            Check(
-                "debt",
-                "Debt load",
-                _ok(ok),
-                f"{m.debt_to_operating_income:.1f} years of operating profit "
-                f"(need ≤ {cfg.max_debt_to_operating_income:g}).",
-            )
-        )
+            Check("debt", q, _ok(ok),
+                  f"It could pay off its long-term debt with {span} of profit. "
+                  f"We look for {limit:g} years or less.")
+        )  # fmt: skip
     return tuple(checks)
 
 
@@ -223,25 +238,31 @@ def score(m: Metrics) -> float | None:
 
 
 def stock_why(r: ScreenResult) -> str:
+    """2-3 plain sentences built only from filed numbers."""
     m = r.metrics
     parts: list[str] = []
     if m.revenue_cagr is not None and m.cagr_from_year and m.latest_year:
         parts.append(
-            f"{r.company} grew revenue {_pct(m.revenue_cagr)} a year from {m.cagr_from_year} "
-            f"to {m.latest_year}, per its SEC filings."
+            f"{r.company}'s sales grew about {m.revenue_cagr * 100:.0f}% a year from "
+            f"{m.cagr_from_year} to {m.latest_year} (from its official SEC reports)."
         )
     if m.operating_margin is not None:
         trend = ""
         if m.operating_margin_prior is not None:
-            trend = f", versus {_pct(m.operating_margin_prior)} two years earlier"
-        parts.append(f"It keeps {_pct(m.operating_margin)} of sales as operating profit{trend}.")
+            word = "up from" if m.operating_margin >= m.operating_margin_prior else "down from"
+            trend = f", {word} {_cents(m.operating_margin_prior)} two years earlier"
+        parts.append(
+            f"It keeps {_cents(m.operating_margin)} of every $1 of sales as profit{trend}."
+        )
     tail: list[str] = []
-    if m.fcf is not None:
-        tail.append(f"generated {_money(m.fcf)} of free cash flow")
+    if m.fcf is not None and m.fcf > 0:
+        tail.append(f"had {_money(m.fcf)} of cash left over after paying its bills")
     if m.debt_to_operating_income is not None:
-        tail.append(f"carries debt equal to {m.debt_to_operating_income:.1f} years of profit")
+        years = m.debt_to_operating_income
+        span = "less than a year" if years < 1 else f"about {years:.1f} years"
+        tail.append(f"could pay off its long-term debt with {span} of profit")
     if tail:
-        parts.append("It " + " and ".join(tail) + ".")
+        parts.append("Last year it " + ", and ".join(tail) + ".")
     return " ".join(parts[:3])
 
 

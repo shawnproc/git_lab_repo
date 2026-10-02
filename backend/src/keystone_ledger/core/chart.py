@@ -41,16 +41,19 @@ def crossovers(close: pd.Series, fast: int = 50, slow: int = 200) -> list[ChartE
         if sign[day]:
             events.append(
                 ChartEvent(day, "golden_cross", price, "Golden cross",
-                    f"The {fast}-day average rose above the {slow}-day average: the recent trend "
-                    "turned stronger than the long-term one. Often read as a bullish sign, but it "
-                    "lags price and gives false signals in choppy markets.")
+                    f"The short-term trend line ({fast}-day average, about 2½ months) crossed "
+                    f"ABOVE the long-term line ({slow}-day average, about 10 months). In plain "
+                    "words: the stock's recent momentum turned stronger. People see this as a "
+                    "good sign, but it shows up late and isn't a promise.")
             )  # fmt: skip
         else:
             events.append(
                 ChartEvent(day, "death_cross", price, "Death cross",
-                    f"The {fast}-day average fell below the {slow}-day average: the recent trend "
-                    "weakened versus the long-term one. Often read as bearish, but it's a lagging "
-                    "signal; many have been followed by recoveries.")
+                    f"The short-term trend line ({fast}-day average, about 2½ months) crossed "
+                    f"BELOW the long-term line ({slow}-day average, about 10 months). In plain "
+                    "words: the stock's recent momentum weakened. The name sounds scary, but "
+                    "it shows up late and many stocks recover soon after. Information, not an "
+                    "alarm.")
             )  # fmt: skip
     return events
 
@@ -72,10 +75,10 @@ def big_moves(close: pd.Series) -> list[ChartEvent]:
         up = pct > 0
         events.append(
             ChartEvent(day, "big_up" if up else "big_down", float(close[day]),
-                f"{'+' if up else ''}{pct:.1f}% day",
-                f"The price {'jumped' if up else 'fell'} {abs(pct):.1f}% in one day, about "
-                f"{multiple:.0f} times its usual daily move over the prior {VOL_WINDOW} days. "
-                "Big moves usually follow news (earnings, guidance, the economy); "
-                "check what happened before reacting.")
+                f"Big {'jump' if up else 'drop'}: {'+' if up else ''}{pct:.1f}%",
+                f"The price {'jumped' if up else 'dropped'} {abs(pct):.1f}% in one day. That's "
+                f"about {multiple:.0f} times bigger than this stock's normal daily move over the "
+                f"month before. Something usually happened (a profit report, news, the whole "
+                "market moving). Read why before doing anything.")
         )  # fmt: skip
     return events

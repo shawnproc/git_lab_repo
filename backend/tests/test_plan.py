@@ -65,9 +65,9 @@ def test_drift_flags_absolute_relative_and_off_plan() -> None:
     # VTI 54% (-6pp), AAPL 7.6% (+1.6pp, 27% relative), MSFT 34%, GME 4.4% off-plan
     s = value_portfolio([("VTI", 540, 1), ("AAPL", 76, 1), ("MSFT", 340, 1), ("GME", 44, 1)], q)
     rows = {r.symbol: r for r in drift(targets, s.positions, s.value, DriftConfig())}
-    assert rows["VTI"].flagged and "6.0 points under" in rows["VTI"].reason
-    assert rows["AAPL"].flagged and "27% off its own target" in rows["AAPL"].reason
-    assert "points" not in rows["AAPL"].reason
+    assert rows["VTI"].flagged and "6.0 percentage points below its target" in rows["VTI"].reason
+    assert rows["AAPL"].flagged and "about 27% more than planned" in rows["AAPL"].reason
+    assert rows["AAPL"].reason.startswith("1.6 percentage points above")
     assert not rows["MSFT"].flagged
     assert rows["GME"].kind == "off_plan" and rows["GME"].flagged
     assert rows["VTI"].target_value == pytest.approx(600)
@@ -119,6 +119,14 @@ def test_whole_shares_spends_leftover_on_most_underweight() -> None:
 
 def test_contribution_without_price_is_explained() -> None:
     plan = split_contribution(100, TARGETS, {}, {"VTI": 300.0}, True, 0)
-    assert "No price for" in plan.note
+    assert "No current price for VXUS, AAPL" in plan.note
     by = {a.symbol: a for a in plan.allocations}
     assert by["VXUS"].shares is None
+
+
+def test_drift_says_not_owned_yet() -> None:
+    targets = [Target("VTI", "core", 60.0, ""), Target("VXUS", "core", 40.0, "")]
+    s = value_portfolio([("VTI", 10, 1)], {"VTI": Quote(1.0, 1.0, date(2026, 10, 2))})
+    rows = {r.symbol: r for r in drift(targets, s.positions, s.value, DriftConfig())}
+    assert rows["VXUS"].flagged
+    assert rows["VXUS"].reason == "you don't own any yet"

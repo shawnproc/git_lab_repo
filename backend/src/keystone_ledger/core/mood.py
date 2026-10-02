@@ -32,32 +32,46 @@ def market_mood(index_close: pd.Series, vix: float | None, cfg: MoodConfig) -> M
     if len(closes) < cfg.ma_days or vix is None:
         missing = []
         if len(closes) < cfg.ma_days:
-            missing.append(f"need {cfg.ma_days} days of S&P 500 closes, have {len(closes)}")
+            missing.append(f"Need {cfg.ma_days} days of S&P 500 prices; have {len(closes)}.")
         if vix is None:
-            missing.append("no VIX reading")
-        return MoodResult("unknown", "Not enough data to judge the market", missing, None, None,
-                          vix)  # fmt: skip
+            missing.append("No VIX (fear gauge) reading yet.")
+        return MoodResult("unknown", "Not enough data yet. Click \"Refresh prices\" to load it.",
+                          missing, None, None, vix)  # fmt: skip
     last = float(closes.iloc[-1])
     ma = float(closes.iloc[-cfg.ma_days :].mean())
     above = last > ma
-    gap = (last / ma - 1) * 100
+    gap = abs(last / ma - 1) * 100
+    months = round(cfg.ma_days / 21)
     trend = (
-        f"The S&P 500 ({last:,.0f}) is {abs(gap):.1f}% {'above' if above else 'below'} its "
-        f"{cfg.ma_days}-day average ({ma:,.0f})."
+        f"Direction: the S&P 500 (the 500 biggest US companies) is {gap:.1f}% "
+        f"{'above' if above else 'below'} its average price over the last ~{months} months, "
+        f"so the market has been trending {'up' if above else 'down'}."
     )
     if vix < cfg.vix_green_below:
-        fear = f"VIX is {vix:.1f}, calm (under {cfg.vix_green_below:g})."
+        fear = (
+            f'Nerves: the VIX "fear gauge" is {vix:.1f}, which is calm '
+            f"(under {cfg.vix_green_below:g})."
+        )
     elif vix > cfg.vix_red_above:
-        fear = f"VIX is {vix:.1f}, fearful (over {cfg.vix_red_above:g})."
+        fear = (
+            f'Nerves: the VIX "fear gauge" is {vix:.1f}, which is scared '
+            f"(over {cfg.vix_red_above:g}). Expect big daily swings."
+        )
     else:
-        fear = f"VIX is {vix:.1f}, somewhat nervous."
+        fear = (
+            f'Nerves: the VIX "fear gauge" is {vix:.1f}, somewhat nervous '
+            f"(between {cfg.vix_green_below:g} and {cfg.vix_red_above:g})."
+        )
     if above and vix < cfg.vix_green_below:
         mood: Mood = "green"
-        headline = "Calm uptrend: business as usual for long-term investing"
+        headline = "Calm and rising. Business as usual: keep adding money on your normal schedule."
     elif not above and vix > cfg.vix_red_above:
         mood = "red"
-        headline = "Downtrend with high fear: stick to the plan, don't panic-sell"
+        headline = (
+            "Falling and fearful. Don't panic-sell. Long-term investors usually do best by "
+            "sticking to the plan; prices are lower, so your monthly money buys more."
+        )
     else:
         mood = "yellow"
-        headline = "Mixed signals: keep contributing on schedule"
+        headline = "Mixed signals. Nothing to do differently: keep adding money on schedule."
     return MoodResult(mood, headline, [trend, fear], last, ma, vix)

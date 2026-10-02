@@ -51,7 +51,8 @@ def test_crossovers() -> None:
     vals = [100.0] * 210 + [100 + i for i in range(1, 80)] + [179 - 3 * i for i in range(1, 60)]
     ev = crossovers(_series(vals))
     assert [e.kind for e in ev] == ["golden_cross", "death_cross"]
-    assert "50-day average rose above the 200-day" in ev[0].explanation
+    assert "crossed ABOVE the long-term line" in ev[0].explanation
+    assert "crossed BELOW" in ev[1].explanation
 
 
 def test_big_moves_use_only_prior_volatility() -> None:
@@ -63,5 +64,5 @@ def test_big_moves_use_only_prior_volatility() -> None:
     ev = big_moves(_series(prices))
     assert len(ev) == 1
     assert ev[0].kind == "big_up"
-    assert ev[0].label.startswith("+8.0%")
-    assert "times its usual daily move" in ev[0].explanation
+    assert ev[0].label == "Big jump: +8.0%"
+    assert "times bigger than this stock's normal daily move" in ev[0].explanation
