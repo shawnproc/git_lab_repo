@@ -18,15 +18,163 @@ export interface AuthStatus {
   csrf_token: string | null
 }
 
-export interface MarketStatus {
-  benchmark: string
-  benchmark_close: number | null
-  benchmark_day: string | null
-  benchmark_freshness: Freshness
+export type Mood = 'green' | 'yellow' | 'red' | 'unknown'
+
+export interface MoodResult {
+  mood: Mood
+  headline: string
+  reasons: string[]
+  index_close: number | null
+  index_ma: number | null
   vix: number | null
-  vix_day: string | null
+}
+
+export interface Position {
+  symbol: string
+  shares: number
+  avg_cost: number
+  price: number | null
+  value: number | null
+  day_change: number | null
+  cost_basis: number
+}
+
+export interface PortfolioSummary {
+  positions: Position[]
+  value: number
+  cost_basis: number
+  day_change: number
+  day_change_pct: number | null
+  total_change: number
+  total_change_pct: number | null
+  missing_prices: string[]
+}
+
+export interface Dashboard {
+  mood: MoodResult
+  index_freshness: Freshness
   vix_freshness: Freshness
+  portfolio: PortfolioSummary
+  holdings_freshness: Record<string, Freshness>
   any_stale: boolean
+}
+
+export type CheckStatus = 'pass' | 'fail' | 'unavailable'
+
+export interface Check {
+  key: string
+  label: string
+  status: CheckStatus
+  detail: string
+}
+
+export interface ScreenResult {
+  symbol: string
+  sector: string
+  company: string
+  checks: Check[]
+  qualifies: boolean
+  score: number | null
+  why: string
+  picked: boolean
+  note: string
+}
+
+export interface TargetRow {
+  symbol: string
+  name: string
+  kind: 'core' | 'stock'
+  target_pct: number
+  target_value: number
+  why: string
+}
+
+export interface FundamentalsStatus {
+  source: string | null
+  fetched_at: string | null
+  stale: boolean
+  reason: string
+  last_error: string
+}
+
+export interface Plan {
+  targets: TargetRow[]
+  screen: ScreenResult[]
+  fundamentals: FundamentalsStatus
+  basis_value: number
+  basis_is_reference: boolean
+}
+
+export interface DriftRow {
+  symbol: string
+  kind: 'core' | 'stock' | 'off_plan'
+  target_pct: number
+  actual_pct: number | null
+  diff_pp: number | null
+  target_value: number
+  actual_value: number | null
+  flagged: boolean
+  reason: string
+}
+
+export interface Holdings {
+  drift: DriftRow[]
+  portfolio: PortfolioSummary
+  freshness: Record<string, Freshness>
+}
+
+export interface HoldingInput {
+  symbol: string
+  shares: number
+  avg_cost: number
+}
+
+export interface Allocation {
+  symbol: string
+  amount: number
+  shares: number | null
+  price: number | null
+}
+
+export interface ContributionPlan {
+  amount: number
+  allocations: Allocation[]
+  leftover: number
+  note: string
+}
+
+export interface ChartPoint {
+  day: string
+  open: number
+  high: number
+  low: number
+  close: number
+  sma50: number | null
+  sma200: number | null
+}
+
+export type EventKind = 'golden_cross' | 'death_cross' | 'big_up' | 'big_down'
+
+export interface ChartEvent {
+  day: string
+  kind: EventKind
+  price: number
+  label: string
+  explanation: string
+}
+
+export interface Chart {
+  symbol: string
+  freshness: Freshness
+  points: ChartPoint[]
+  events: ChartEvent[]
+}
+
+export interface Learn {
+  glossary: { term: string; definition: string; why_it_matters: string; example?: string }[]
+  faq: { q: string; a: string }[]
+  links: { title: string; url: string; source: string; kind: string; topic: string; verified_on: string | null }[]
+  pending_links: number
 }
 
 export class ApiError extends Error {
@@ -105,6 +253,14 @@ export const api = {
   login: (username: string, password: string) =>
     request<AuthStatus>('POST', '/api/auth/login', { username, password }),
   logout: () => request<undefined>('POST', '/api/auth/logout'),
-  marketStatus: () => request<MarketStatus>('GET', '/api/market/status'),
-  marketRefresh: () => request<MarketStatus>('POST', '/api/market/refresh'),
+  dashboard: () => request<Dashboard>('GET', '/api/dashboard'),
+  refreshMarket: () => request<Dashboard>('POST', '/api/market/refresh'),
+  plan: () => request<Plan>('GET', '/api/plan'),
+  refreshPlan: () => request<Plan>('POST', '/api/plan/refresh'),
+  holdings: () => request<Holdings>('GET', '/api/holdings'),
+  saveHoldings: (holdings: HoldingInput[]) => request<Holdings>('PUT', '/api/holdings', { holdings }),
+  contribution: (amount: number) => request<ContributionPlan>('POST', '/api/contribution', { amount }),
+  chart: (symbol: string, days = 730) =>
+    request<Chart>('GET', `/api/chart/${encodeURIComponent(symbol)}?days=${String(days)}`),
+  learn: () => request<Learn>('GET', '/api/learn'),
 }

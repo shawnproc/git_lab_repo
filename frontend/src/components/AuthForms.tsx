@@ -109,7 +109,7 @@ export function LoginForm({ onAuthed }: Props) {
   }
 
   return (
-    <Shell title="Good morning" subtitle="Sign in to see today’s market status.">
+    <Shell title="Good morning" subtitle="Sign in to see today’s market mood and your money.">
       <form onSubmit={(e) => void submit(e)} className="space-y-4">
         <label className="block text-sm">
           Username
