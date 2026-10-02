@@ -16,6 +16,8 @@ from keystone_ledger.config import AppConfig
 from keystone_ledger.core.auth import ensure_setup_token
 from keystone_ledger.data.base import BAR_COLUMNS, ProviderError
 from keystone_ledger.data.calendar import MarketCalendar
+from keystone_ledger.data.fundamentals import FundamentalsService
+from keystone_ledger.data.sec_provider import FrameValue, TickerInfo
 from keystone_ledger.data.service import MarketDataService
 from keystone_ledger.settings import Settings
 
@@ -91,6 +93,72 @@ class FakeMacroProvider:
         return pd.Series([15.0 + (i % 7) for i in range(len(days))], index=days, dtype=float)
 
 
+# Synthetic company financials (USD): revenue at `rev0` in 2021 growing `g`/yr, operating margin
+# `m` (+`dm` per year), FCF = `fcf` x revenue, debt = `debt` x operating income.
+COMPANIES: dict[str, dict[str, float]] = {
+    "AAPL": {"cik": 320193, "rev0": 300e9, "g": 0.08, "m": 0.28, "dm": 0.01, "fcf": 0.25, "debt": 0.9},
+    "MSFT": {"cik": 789019, "rev0": 160e9, "g": 0.14, "m": 0.40, "dm": 0.01, "fcf": 0.30, "debt": 0.4},
+    "NVDA": {"cik": 1045810, "rev0": 25e9, "g": 0.60, "m": 0.35, "dm": 0.05, "fcf": 0.40, "debt": 0.2},
+    "ORCL": {"cik": 1341439, "rev0": 40e9, "g": 0.07, "m": 0.30, "dm": 0.0, "fcf": 0.20, "debt": 6.0},
+    "KO": {"cik": 21344, "rev0": 38e9, "g": 0.06, "m": 0.29, "dm": 0.0, "fcf": 0.25, "debt": 2.5},
+    "NKE": {"cik": 320187, "rev0": 46e9, "g": 0.01, "m": 0.13, "dm": -0.01, "fcf": 0.10, "debt": 1.2},
+    "XOM": {"cik": 34088, "rev0": 280e9, "g": 0.04, "m": 0.15, "dm": 0.0, "fcf": 0.08, "debt": 1.0},
+    "LLY": {"cik": 59478, "rev0": 28e9, "g": 0.18, "m": 0.30, "dm": 0.01, "fcf": 0.15, "debt": 1.5},
+    "OTHER": {"cik": 999999, "rev0": 1e9, "g": 0.5, "m": 0.5, "dm": 0.0, "fcf": 0.5, "debt": 0.1},
+}  # fmt: skip
+
+
+def company_values(name: str, year: int) -> dict[str, float]:
+    c = COMPANIES[name]
+    rev = c["rev0"] * (1 + c["g"]) ** (year - 2021)
+    oi = rev * (c["m"] + c["dm"] * (year - 2021))
+    cfo = rev * c["fcf"] * 1.2
+    capex = cfo - rev * c["fcf"]
+    return {"rev": rev, "oi": oi, "cfo": cfo, "capex": capex, "debt": oi * c["debt"]}
+
+
+@dataclass
+class FakeFundamentalsProvider:
+    name: str = "fake_sec"
+    calls: int = 0
+    fail: ProviderError | None = None
+    first_year: int = 2021
+
+    def fetch_tickers(self) -> dict[str, TickerInfo]:
+        self.calls += 1
+        if self.fail:
+            raise self.fail
+        return {t: TickerInfo(int(c["cik"]), f"{t} Corp") for t, c in COMPANIES.items()}
+
+    def fetch_frame(self, tag: str, period: str) -> dict[int, FrameValue]:
+        self.calls += 1
+        if self.fail:
+            raise self.fail
+        year = int(period[2:6])
+        if year < self.first_year:
+            return {}
+        out: dict[int, FrameValue] = {}
+        for t, c in COMPANIES.items():
+            v = company_values(t, year)
+            # MSFT reported revenue under the older tag, to exercise tag fallback.
+            rev_tag = (
+                "Revenues"
+                if t == "MSFT"
+                else ("RevenueFromContractWithCustomerExcludingAssessedTax")
+            )
+            key = {
+                rev_tag: "rev",
+                "OperatingIncomeLoss": "oi",
+                "NetCashProvidedByUsedInOperatingActivities": "cfo",
+                "PaymentsToAcquirePropertyPlantAndEquipment": "capex",
+                "LongTermDebt": "debt",
+            }.get(tag)
+            if key is None:
+                continue
+            out[int(c["cik"])] = FrameValue(v[key], date(year, 12, 31), f"acc-{t}-{year}")
+        return out
+
+
 @pytest.fixture
 def calendar() -> MarketCalendar:
     return MarketCalendar()
@@ -118,12 +186,18 @@ def macro(calendar: MarketCalendar) -> FakeMacroProvider:
 
 
 @pytest.fixture
+def sec() -> FakeFundamentalsProvider:
+    return FakeFundamentalsProvider()
+
+
+@pytest.fixture
 def state(
     settings: Settings,
     clock: FakeClock,
     calendar: MarketCalendar,
     prices: FakePriceProvider,
     macro: FakeMacroProvider,
+    sec: FakeFundamentalsProvider,
 ) -> AppState:
     return build_state(
         settings,
@@ -132,6 +206,9 @@ def state(
         clock=clock,
         market_factory=lambda sf: MarketDataService(
             sf, prices, macro, calendar, history_years=3, clock=clock
+        ),
+        fundamentals_factory=lambda sf: FundamentalsService(
+            sf, sec, max_age=timedelta(days=30), clock=clock
         ),
     )
 

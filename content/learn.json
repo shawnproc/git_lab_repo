@@ -1,0 +1,16 @@
+{
+  "glossary": [
+    {
+      "term": "Moving average (50-day, 200-day)",
+      "definition": "The average closing price over the last 50 or 200 trading days, redrawn every day.",
+      "why_it_matters": "It smooths out daily noise so you can see the trend. Price above its 200-day line usually means a long-term uptrend."
+    }
+  ],
+  "faq": [
+    {
+      "q": "Is this financial advice?",
+      "a": "No. It's an educational tool that applies simple, visible rules to public data. Decisions are yours."
+    }
+  ],
+  "links": []
+}

@@ -158,7 +158,7 @@ def test_body_size_limit(client: TestClient) -> None:
 
 
 def test_protected_endpoints_require_auth(client: TestClient) -> None:
-    for path in ("/api/market/status", "/api/market/bars/SPY", "/api/config"):
+    for path in ("/api/dashboard", "/api/market/bars/SPY", "/api/config"):
         assert client.get(path).status_code == 401, path
 
 

@@ -25,6 +25,9 @@ from keystone_ledger.db.session import init_schema, make_engine, make_session_fa
 
 from .conftest import PASSWORD, FakeClock
 
+# Windows has no POSIX modes; there the data dir lives in the per-user %LOCALAPPDATA%.
+POSIX_ONLY = pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+
 POLICY = AuthPolicy(
     idle=timedelta(hours=12),
     absolute=timedelta(days=7),
@@ -137,6 +140,7 @@ def test_change_password_revokes_sessions(svc: AuthService, sf, user) -> None:  
         assert svc.resolve(s, new.token) is not None
 
 
+@POSIX_ONLY
 def test_setup_token_file_is_private(tmp_path: Path) -> None:
     p = tmp_path / "sub" / "setup-token.txt"
     tok = ensure_setup_token(p)
@@ -147,6 +151,7 @@ def test_setup_token_file_is_private(tmp_path: Path) -> None:
     assert not check_setup_token(tmp_path / "nope", tok)
 
 
+@POSIX_ONLY
 def test_database_file_is_owner_only(tmp_path: Path) -> None:
     db = tmp_path / "var" / "k.sqlite3"
     init_schema(make_engine(db))

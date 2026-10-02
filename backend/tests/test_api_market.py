@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi.testclient import TestClient
 
 from keystone_ledger.data.base import ProviderError
@@ -7,29 +9,8 @@ from keystone_ledger.data.base import ProviderError
 from .conftest import FakePriceProvider
 
 
-def test_status_before_refresh_is_loudly_stale(authed: TestClient) -> None:
-    body = authed.get("/api/market/status").json()
-    assert body["any_stale"] is True
-    assert body["benchmark_close"] is None
-    assert body["benchmark_freshness"]["reason"] == "no data cached"
-
-
-def test_refresh_then_status(authed: TestClient, prices: FakePriceProvider) -> None:
-    body = authed.post("/api/market/refresh").json()
-    assert body["benchmark"] == "SPY"
-    assert body["benchmark_day"] == "2026-10-02"
-    assert body["benchmark_freshness"]["stale"] is False
-    assert body["benchmark_freshness"]["source"] == "fake_prices"
-    assert body["benchmark_freshness"]["fetched_at"]
-    assert body["vix"] is not None
-    # FRED-style one-session lag is tolerated for macro series.
-    assert body["vix_freshness"]["stale"] is False
-    assert body["any_stale"] is False
-    assert len(prices.calls) == 1
-
-
-def test_bars_endpoint(authed: TestClient) -> None:
-    authed.post("/api/market/refresh")
+def test_bars_endpoint(authed: TestClient, state: Any) -> None:
+    state.market.refresh_bars("SPY")
     r = authed.get("/api/market/bars/SPY", params={"days": 30})
     body = r.json()
     assert r.status_code == 200
@@ -45,18 +26,19 @@ def test_bad_symbol_rejected(authed: TestClient) -> None:
 def test_provider_failure_surfaces(authed: TestClient, prices: FakePriceProvider) -> None:
     prices.fail = ProviderError("fake: boom")
     body = authed.post("/api/market/refresh").json()
-    f = body["benchmark_freshness"]
+    f = body["index_freshness"]
     assert f["stale"] is True
     assert f["last_error"] == "fake: boom"
+    assert body["any_stale"] is True
 
 
 def test_config_endpoint(authed: TestClient) -> None:
     body = authed.get("/api/config").json()
-    assert body["config"]["swing"]["risk_per_trade_pct"] == 1.0
+    assert body["config"]["plan"]["core_pct"] == 60.0
     assert len(body["history"]) == 1
 
 
 def test_config_has_no_write_endpoint(authed: TestClient) -> None:
     for method in ("post", "put", "patch"):
-        r = getattr(authed, method)("/api/config", json={"swing": {"risk_per_trade_pct": 5}})
+        r = getattr(authed, method)("/api/config", json={"plan": {"max_stocks": 10}})
         assert r.status_code == 405

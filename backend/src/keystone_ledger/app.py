@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, sessionmaker
 
 from keystone_ledger import __version__
-from keystone_ledger.api import routes_auth, routes_market
+from keystone_ledger.api import routes_auth, routes_market, routes_plan
 from keystone_ledger.api.deps import AppState
 from keystone_ledger.api.security import SecurityMiddleware
 from keystone_ledger.config import AppConfig, load_config
@@ -21,9 +21,15 @@ from keystone_ledger.core.auth import AuthPolicy, AuthService, Clock, utcnow
 from keystone_ledger.core.config_audit import record_config
 from keystone_ledger.core.logging import configure_logging
 from keystone_ledger.data.calendar import MarketCalendar
-from keystone_ledger.data.registry import build_macro_provider, build_price_provider
+from keystone_ledger.data.fundamentals import FundamentalsService
+from keystone_ledger.data.registry import (
+    build_fundamentals_provider,
+    build_macro_provider,
+    build_price_provider,
+)
 from keystone_ledger.data.service import MarketDataService
 from keystone_ledger.db.session import init_schema, make_engine, make_session_factory, transaction
+from keystone_ledger.planner import Planner
 from keystone_ledger.settings import REPO_ROOT, Settings, get_settings
 
 log = logging.getLogger(__name__)
@@ -38,6 +44,7 @@ def build_state(
     in_memory: bool = False,
     clock: Clock = utcnow,
     market_factory: Callable[[sessionmaker[Session]], MarketDataService] | None = None,
+    fundamentals_factory: Callable[[sessionmaker[Session]], FundamentalsService] | None = None,
 ) -> AppState:
     cfg = config if config is not None else load_config(settings.config_path)
     engine = make_engine(None if in_memory else settings.db_path)
@@ -63,12 +70,23 @@ def build_state(
             history_years=cfg.data.history_years,
             clock=clock,
         )
+    if fundamentals_factory is not None:
+        fundamentals = fundamentals_factory(sf)
+    else:
+        fundamentals = FundamentalsService(
+            sf,
+            build_fundamentals_provider(cfg, settings),
+            max_age=timedelta(days=cfg.data.fundamentals_max_age_days),
+            clock=clock,
+        )
     return AppState(
         settings=settings,
         config=cfg,
         session_factory=sf,
         auth=AuthService(policy, clock),
         market=market,
+        fundamentals=fundamentals,
+        planner=Planner(cfg, market, fundamentals),
     )
 
 
@@ -97,6 +115,7 @@ def create_app(
     )
     app.include_router(routes_auth.router)
     app.include_router(routes_market.router)
+    app.include_router(routes_plan.router)
 
     if frontend_dist is not None and (frontend_dist / "index.html").is_file():
         app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")

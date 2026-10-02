@@ -12,8 +12,11 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from keystone_ledger.config import AppConfig
 from keystone_ledger.core.auth import AuthService
+from keystone_ledger.data.fundamentals import FundamentalsService
 from keystone_ledger.data.service import MarketDataService
 from keystone_ledger.db.models import AuthSession, User
+from keystone_ledger.db.session import transaction
+from keystone_ledger.planner import Planner
 from keystone_ledger.settings import Settings
 
 SESSION_COOKIE = "kl_session"
@@ -27,6 +30,8 @@ class AppState:
     session_factory: sessionmaker[Session]
     auth: AuthService
     market: MarketDataService
+    fundamentals: FundamentalsService
+    planner: Planner
 
 
 def get_state(request: Request) -> AppState:
@@ -51,8 +56,11 @@ class Principal:
     session: AuthSession
 
 
-def current_principal(request: Request, state: StateDep, db: DbDep) -> Principal:
-    resolved = state.auth.resolve(db, request.cookies.get(SESSION_COOKIE))
+def current_principal(request: Request, state: StateDep) -> Principal:
+    # Own short transaction: the last-seen touch is committed immediately, so the request's
+    # session never holds SQLite's write lock while slow provider calls write elsewhere.
+    with transaction(state.session_factory) as s:
+        resolved = state.auth.resolve(s, request.cookies.get(SESSION_COOKIE))
     if resolved is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not authenticated")
     return Principal(*resolved)

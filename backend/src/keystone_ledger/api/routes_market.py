@@ -11,14 +11,13 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from keystone_ledger import __version__
-from keystone_ledger.api.deps import CsrfPrincipalDep, DbDep, PrincipalDep, StateDep
+from keystone_ledger.api.deps import DbDep, PrincipalDep, StateDep
 from keystone_ledger.data.base import SYMBOL_RE
 from keystone_ledger.data.service import Freshness
 from keystone_ledger.db.models import ConfigAudit
 
 router = APIRouter(prefix="/api", tags=["market"])
 
-VIX_SERIES = "VIXCLS"
 SymbolPath = Annotated[str, Path(min_length=1, max_length=16, pattern=SYMBOL_RE.pattern)]
 
 
@@ -61,17 +60,6 @@ class SeriesOut(BaseModel):
     series_id: str
     freshness: FreshnessOut
     points: list[PointOut]
-
-
-class MarketStatusOut(BaseModel):
-    benchmark: str
-    benchmark_close: float | None
-    benchmark_day: date | None
-    benchmark_freshness: FreshnessOut
-    vix: float | None
-    vix_day: date | None
-    vix_freshness: FreshnessOut
-    any_stale: bool
 
 
 class HealthOut(BaseModel):
@@ -132,34 +120,6 @@ def series(
         freshness=FreshnessOut.of(res.freshness),
         points=[PointOut(day=d, value=float(v)) for d, v in res.values.items()],
     )
-
-
-def _status(state: StateDep) -> MarketStatusOut:
-    bench = state.config.regime.benchmark
-    b = state.market.get_bars(bench, refresh=False)
-    v = state.market.get_series(VIX_SERIES, refresh=False)
-    return MarketStatusOut(
-        benchmark=bench,
-        benchmark_close=float(b.bars["close"].iloc[-1]) if not b.bars.empty else None,
-        benchmark_day=b.freshness.last_day,
-        benchmark_freshness=FreshnessOut.of(b.freshness),
-        vix=float(v.values.iloc[-1]) if not v.values.empty else None,
-        vix_day=v.freshness.last_day,
-        vix_freshness=FreshnessOut.of(v.freshness),
-        any_stale=b.freshness.stale or v.freshness.stale,
-    )
-
-
-@router.get("/market/status", response_model=MarketStatusOut)
-def market_status(state: StateDep, _p: PrincipalDep) -> MarketStatusOut:
-    return _status(state)
-
-
-@router.post("/market/refresh", response_model=MarketStatusOut)
-def market_refresh(state: StateDep, _p: CsrfPrincipalDep) -> MarketStatusOut:
-    state.market.refresh_bars(state.config.regime.benchmark)
-    state.market.refresh_series(VIX_SERIES)
-    return _status(state)
 
 
 @router.get("/config", response_model=ConfigOut)
