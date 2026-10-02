@@ -54,6 +54,9 @@ def init_schema(engine: Engine) -> None:
             raise RuntimeError(
                 f"database schema v{row.value} is newer than this app (v{SCHEMA_VERSION})"
             )
+        elif int(row.value) < SCHEMA_VERSION:
+            # v1 -> v2 only added tables, which create_all() has just made.
+            row.value = str(SCHEMA_VERSION)
 
 
 def make_session_factory(engine: Engine) -> sessionmaker[Session]:

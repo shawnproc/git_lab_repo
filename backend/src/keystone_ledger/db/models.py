@@ -17,7 +17,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from keystone_ledger.db.types import UTCDateTime
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class Base(DeclarativeBase):
@@ -126,3 +126,41 @@ class FetchLog(Base):
     error: Mapped[str] = mapped_column(Text, default="")
 
     __table_args__ = (Index("ix_fetch_log_key", "dataset", "key", "started_at"),)
+
+
+# --- portfolio --------------------------------------------------------------------------------
+
+
+class Holding(Base):
+    """What the owner actually holds, as entered by hand."""
+
+    __tablename__ = "holdings"
+    symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
+    shares: Mapped[float] = mapped_column(Float)
+    avg_cost: Mapped[float] = mapped_column(Float)  # per share, USD
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+# --- fundamentals (SEC EDGAR) -----------------------------------------------------------------
+
+
+class SecTicker(Base):
+    __tablename__ = "sec_tickers"
+    ticker: Mapped[str] = mapped_column(String(16), primary_key=True)
+    cik: Mapped[int] = mapped_column(Integer, index=True)
+    title: Mapped[str] = mapped_column(String(256))
+    fetched_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class FundamentalFact(Base):
+    """One XBRL value for one company, tag and calendar frame (e.g. Revenues, CY2024)."""
+
+    __tablename__ = "fundamental_facts"
+    cik: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tag: Mapped[str] = mapped_column(String(128), primary_key=True)
+    period: Mapped[str] = mapped_column(String(16), primary_key=True)  # CY2024 / CY2024Q4I
+    value: Mapped[float] = mapped_column(Float)
+    end: Mapped[date] = mapped_column(Date)
+    accn: Mapped[str] = mapped_column(String(32))
+    source: Mapped[str] = mapped_column(String(32))
+    fetched_at: Mapped[datetime] = mapped_column(UTCDateTime())

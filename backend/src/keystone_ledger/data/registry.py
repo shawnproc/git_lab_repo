@@ -5,7 +5,9 @@ from __future__ import annotations
 from keystone_ledger.config import AppConfig
 from keystone_ledger.data.base import MacroProvider, PriceProvider
 from keystone_ledger.data.fred_provider import FredCsvProvider
+from keystone_ledger.data.fundamentals import FundamentalsProvider
 from keystone_ledger.data.ratelimit import MinIntervalLimiter
+from keystone_ledger.data.sec_provider import SecEdgarProvider
 from keystone_ledger.data.yfinance_provider import YFinanceProvider
 from keystone_ledger.settings import Settings
 
@@ -16,6 +18,14 @@ def build_price_provider(cfg: AppConfig, settings: Settings) -> PriceProvider:
     if name == "yfinance":
         return YFinanceProvider(limiter)
     raise ValueError(f"unknown price provider: {name!r}")
+
+
+def build_fundamentals_provider(cfg: AppConfig, settings: Settings) -> FundamentalsProvider:
+    name = cfg.data.fundamentals_provider
+    if name == "sec_edgar":
+        limiter = MinIntervalLimiter(cfg.data.sec_requests_per_second)
+        return SecEdgarProvider(settings.sec_user_agent, limiter)
+    raise ValueError(f"unknown fundamentals provider: {name!r}")
 
 
 def build_macro_provider(cfg: AppConfig) -> MacroProvider:

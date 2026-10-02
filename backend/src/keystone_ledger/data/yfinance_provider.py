@@ -83,7 +83,10 @@ class YFinanceProvider:
         except yfe.YFRateLimitError as exc:
             raise RateLimitedError("yfinance: rate limited by Yahoo") from exc
         except (yfe.YFTickerMissingError, yfe.YFTzMissingError) as exc:
-            raise SymbolNotFoundError(f"yfinance: symbol not found: {sym}") from exc
+            # yfinance raises these both for unknown symbols and when Yahoo is unreachable.
+            raise SymbolNotFoundError(
+                f"yfinance: no data for {sym} (unknown symbol, or Yahoo unreachable)"
+            ) from exc
         except yfe.YFPricesMissingError:
             return normalize_history(pd.DataFrame())
         except Exception as exc:  # network, JSON, etc. Message is type-only: no URLs/cookies.
