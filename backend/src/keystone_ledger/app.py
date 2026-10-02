@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, sessionmaker
 
 from keystone_ledger import __version__
-from keystone_ledger.api import routes_auth, routes_market, routes_plan
+from keystone_ledger.api import routes_auth, routes_market, routes_plan, routes_wall
 from keystone_ledger.api.deps import AppState
 from keystone_ledger.api.security import SecurityMiddleware
 from keystone_ledger.config import AppConfig, load_config
@@ -116,6 +116,7 @@ def create_app(
     app.include_router(routes_auth.router)
     app.include_router(routes_market.router)
     app.include_router(routes_plan.router)
+    app.include_router(routes_wall.router)
 
     if frontend_dist is not None and (frontend_dist / "index.html").is_file():
         app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")

@@ -17,7 +17,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from keystone_ledger.db.types import UTCDateTime
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class Base(DeclarativeBase):
@@ -164,3 +164,17 @@ class FundamentalFact(Base):
     accn: Mapped[str] = mapped_column(String(32))
     source: Mapped[str] = mapped_column(String(32))
     fetched_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+# --- the growing wall (contribution log) ------------------------------------------------------
+
+
+class Contribution(Base):
+    """Money the owner says they invested in a month. Entered by hand; never fetched."""
+
+    __tablename__ = "contributions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    month: Mapped[date] = mapped_column(Date, index=True)  # always the 1st of the month
+    amount: Mapped[float] = mapped_column(Float)
+    note: Mapped[str] = mapped_column(String(120), default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
