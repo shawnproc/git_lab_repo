@@ -1,74 +1,153 @@
 # Keystone Ledger
 
-A personal long-term investing dashboard: market mood, a core-plus-quality-stocks plan, a monthly
-contribution split, holdings drift, annotated charts and a Learn page. It runs entirely on your
-machine and uses free data only.
+A personal long-term investing dashboard that runs on your own computer:
+
+- **Home:** today's market mood (🟢 🟡 🔴) and how your money is doing.
+- **My Plan:** what to own (a steady core of index funds plus up to 6 strong companies), how much
+  of each, and why.
+- **My Money:** enter what you own, see whether you're on track, and get a split for this month's
+  money.
+- **Charts:** prices with trend lines, with the important moments circled and explained.
+- **Learn:** every word the app uses, in plain English, plus beginner questions answered.
 
 > **Educational tool, not financial advice.** It never connects to a broker or places trades.
+> Free public data only. Everything stays on your computer.
 
-**Status:** the backend is complete. The new UI pages and Windows scripts are next; see
-[`docs/PLAN.md`](docs/PLAN.md).
+---
 
-## Requirements
-- Python 3.12 + [uv](https://docs.astral.sh/uv/)
-- Node.js 22+
-- `make` (on Windows, use WSL, or run the commands inside the `Makefile` by hand)
+## Setting it up on Windows (step by step, about 15 minutes)
 
-## Setup
-```bash
-make install                 # pinned deps from uv.lock / package-lock.json
-cp .env.example .env         # optional: deployment settings (all have safe defaults)
-cp config/keystone.example.toml config/keystone.toml   # optional: trading rules
-make run                     # builds the UI, serves http://127.0.0.1:8787
+You only do this once. Each step says what to type; copy and paste it exactly.
+
+### 1. Open PowerShell
+Press the **Windows key**, type `PowerShell`, and click **Windows PowerShell**. A blue or black
+window opens. That's where you'll type the commands below.
+
+### 2. Install the three free tools the app needs
+Paste each line, press **Enter**, and wait for it to finish before the next one. If Windows asks
+"Do you want to allow this app to make changes?", click **Yes**.
+
+```powershell
+winget install --id Git.Git -e
+winget install --id OpenJS.NodeJS.LTS -e
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
-On first run, the terminal prints a **one-time setup token**, which is also saved to
-`var/setup-token.txt` with mode 0600. Open the app, paste the token, and choose a username and a
-passphrase of 12+ characters. The token is deleted once the account exists. It stops any other local
-process or web page from claiming your account first.
 
-For UI work, run `make dev`: the API runs on :8787 and Vite hot-reloads on :5173, proxying `/api`.
+- **Git** downloads the app's code.
+- **Node.js** builds the app's screens.
+- **uv** runs the app's engine (it installs the right Python for you).
 
-## Daily use (Phase 1)
-Sign in, then click **Refresh data**. The dashboard shows the SPY close and VIX, each with its
-source, the session it's from, the session it *should* be from, and when it was fetched. If anything
-is missing or behind, a yellow banner says so. Don't act on numbers flagged stale.
+**Now close PowerShell and open a new one** so Windows notices the new tools.
 
-## Changing config
-Trading rules live in `config/keystone.toml` (start from `config/keystone.example.toml`).
-- Read **once at startup**, so restart to apply changes. No setting can be changed from the UI.
-- Hard limits are enforced in code: no single stock above **10%**, 1-3 core funds whose weights add
-  up to the core %, and core + stocks = 100%. A file that breaks them refuses to load.
-- Every change is logged with a diff in the `config_audit` table, viewable at `GET /api/config`.
+> If `winget` isn't recognized, install **App Installer** from the Microsoft Store, or download
+> Git from https://git-scm.com and Node.js (the "LTS" version) from https://nodejs.org.
 
-Deployment settings (port, session timeouts, lockout) are `KL_*` variables in `.env`.
+### 3. Allow PowerShell to run the app's script (one time)
+Windows blocks scripts by default. This allows scripts you create or download with tools like Git:
 
-## Data sources (verified October 2026)
-| Data | Source | Key? | Notes |
-|---|---|---|---|
-| Daily OHLCV | Yahoo Finance via `yfinance` 1.7 | No | Personal use only. No published quota, and rate limits are aggressive (`YFRateLimitError`). We pace to ≤1 req/s, fetch incrementally and cache in SQLite. |
-| VIX (VIXCLS) | FRED `fredgraph.csv` | No | FRED's JSON API needs a free key (account required). The CSV export doesn't. Data is Cboe's: personal use. |
-| Fundamentals | SEC EDGAR frames API | No | Max 10 req/s (we use 5), and you **must** send a User-Agent with your contact info (`KL_SEC_USER_AGENT`). |
-
-Sources sit behind `PriceProvider` / `MacroProvider` interfaces (`backend/src/keystone_ledger/data/base.py`),
-so you can swap one by changing `[data]` in the config.
-
-## Security model
-- Binds to **127.0.0.1 only**. Any other address is refused unless explicitly allowed. For phone
-  access, use Tailscale rather than opening a port.
-- argon2id password hashing. Server-side sessions store only a SHA-256 of the token. The cookie is
-  `HttpOnly; SameSite=Strict` (plus `Secure` over HTTPS). Sessions expire after 12 hours idle and
-  7 days absolute. Five failed logins in 15 minutes lock login for 15 minutes, and the lockout
-  survives restarts.
-- Per-session CSRF token on every state-changing request, plus Origin/`Sec-Fetch-Site` checks. No
-  CORS headers, so the API is same-origin only.
-- Host-header allowlist blocks DNS rebinding. Responses carry a strict CSP, `X-Frame-Options: DENY`,
-  `nosniff`, `no-referrer` and `no-store`. Request bodies are capped at 64 KB.
-- Pydantic validation (`extra="forbid"`) on every input. ORM-only SQL. Symbols are regex-validated
-  before they reach a provider. Logs pass through a redaction filter. The DB file is 0600.
-- `make check` runs `pip-audit` (against the hash-pinned lock) and `npm audit`.
-
-## Development
-```bash
-make check   # ruff + mypy --strict + eslint + tsc + pytest + vitest + pip-audit + npm audit
-make fmt
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
+
+Type `Y` and press **Enter** if it asks.
+
+### 4. Download the app
+```powershell
+cd $HOME\Documents
+git clone https://github.com/shawnproc/git_lab_repo.git KeystoneLedger
+cd KeystoneLedger
+git checkout claude/new-session-l8c0p3
+```
+
+If a GitHub sign-in window pops up, sign in with your GitHub account (needed if the repository is private).
+
+### 5. Run the one-time setup
+```powershell
+.\tasks.ps1 setup
+```
+
+It installs everything (exact, security-checked versions), builds the screens, and checks that the
+Learn page links open. It also asks for **your name and email**: the SEC (the government office
+that publishes company reports) asks every app to say who is reading. They're saved only in a file
+called `.env` on your computer.
+
+### 6. Start the app
+```powershell
+.\tasks.ps1 run
+```
+
+Leave this window open while you use the app. Then open your browser and go to
+**http://127.0.0.1:8787**. (That address means "this computer"; the app is never on the internet.)
+
+**The very first time**, the PowerShell window prints a **setup token**, a one-time code, that
+looks like `pxvxEkzl5zSjC9PRWNiJzy_tVnKnBAXq`. Copy it into the browser page, then pick a username
+and a password of 12+ characters (a short sentence works well). This step means nobody else on
+your computer can create the account before you.
+
+To stop the app, click the PowerShell window and press **Ctrl + C**.
+
+---
+
+## Your monthly routine (about 10 minutes)
+1. Run `.\tasks.ps1 run` and open **http://127.0.0.1:8787**.
+2. **Home** → click **Refresh prices**. Read the mood. Whatever the color, the plan is usually
+   the same: keep adding on schedule.
+3. **My Plan** → click **Update company reports** (it only re-reads them about once a month).
+4. **My Money** → type in this month's amount and click **Show me how to split it**.
+5. Place those buys in your broker's app.
+6. Back on **My Money**, update your shares and click **Save**.
+
+Every screen has **💡 What does this mean?** boxes. Click them any time.
+
+---
+
+## Changing the plan
+The rules live in a settings file. To change them:
+
+1. Copy `config\keystone.example.toml` to `config\keystone.toml`.
+2. Open it in Notepad. Every setting has a comment explaining it.
+3. Save it, then restart the app (Ctrl + C, then `.\tasks.ps1 run`).
+
+Examples: change the 60/40 split, add a bond fund like BND to the core, switch to whole shares
+(`fractional_shares = false`), or edit the list of 40 companies.
+
+Built-in safety limits that can't be turned off: no single company above **10%** of your money,
+the core funds must add up to the core %, and core + companies must equal 100%. A settings file
+that breaks these refuses to load and tells you why. Every change is recorded.
+
+---
+
+## If something goes wrong
+| What you see | What to do |
+|---|---|
+| `.\tasks.ps1 : cannot be loaded because running scripts is disabled` | Do step 3 again. |
+| `Missing: uv` (or node) | Do step 2 again, then **close and reopen** PowerShell. |
+| The browser says "can't reach this page" | The app isn't running: run `.\tasks.ps1 run` and keep that window open. |
+| A yellow "**numbers are old or missing**" banner | The free data source is slow or limiting requests. Click **Refresh prices** again in a few minutes. Don't act on old numbers. |
+| "Too many failed attempts" at sign-in | Wait 15 minutes, then try again. |
+| Learn page says links are "waiting to be checked" | Run `.\tasks.ps1 verify-links` while connected to the internet. |
+
+---
+
+## Where the numbers come from (all free, no accounts)
+| Data | Source | Notes |
+|---|---|---|
+| Daily prices | Yahoo Finance via `yfinance` | Personal use. Requests are paced and saved, so the app asks rarely. |
+| VIX (fear gauge) | FRED (St. Louis Fed) CSV download | No key needed. |
+| Company reports | SEC EDGAR | Free. Requires your name/email (set during setup). At most 5 requests a second (the SEC allows 10). |
+
+If any number is old or missing, the app says so loudly instead of guessing.
+
+## Security, briefly
+- Runs only on `127.0.0.1` (your computer). Nothing is reachable from the internet.
+- Password stored with argon2id (a slow, salted hash), so even the database file doesn't reveal it.
+  Login locks for 15 minutes after 5 wrong tries. You're signed out after 12 hours idle.
+- Protections against malicious websites poking at the app: CSRF tokens, strict same-site
+  cookies, origin and host checks, and a strict content security policy.
+- Your data lives in `%LOCALAPPDATA%\KeystoneLedger`, which only your Windows account can read.
+- `.\tasks.ps1 check` runs every test plus a vulnerability scan of every dependency.
+
+## For developers
+`.\tasks.ps1 check` (Windows) or `make check` (macOS/Linux) runs ruff, mypy --strict, eslint, tsc,
+pytest, vitest, pip-audit and npm audit. `.\tasks.ps1 dev` gives live reload. Conventions are in
+[`CLAUDE.md`](CLAUDE.md); the rules and status are in [`docs/PLAN.md`](docs/PLAN.md).

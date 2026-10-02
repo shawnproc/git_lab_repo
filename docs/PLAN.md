@@ -7,8 +7,12 @@ data, educational only.
 ## Status
 - [x] **Phase 1, skeleton:** auth, security middleware, data layer (yfinance, FRED), UI shell
 - [x] **Checkpoint 1, backend:** config, SEC fundamentals, engine, holdings, API, tests
-- [ ] **Checkpoint 2, frontend:** dashboard, plan, holdings + contribution, charts, Learn page,
-      `tasks.ps1` for Windows, verified links, docs
+- [x] **Checkpoint 2, frontend:** Home, My Plan, My Money, Charts, Learn pages, all written for
+      a beginner with "What does this mean?" explainers. `tasks.ps1` for Windows (tested in
+      PowerShell 7.5) and a step-by-step Windows README.
+- **Links:** `content/learn.json` links are shown only after `verify-links` confirms they open.
+  Setup runs it automatically. The sandbox couldn't reach the sites, so the links were chosen
+  from current search results and are stamped on the owner's machine.
 
 ## Rules (all in `config/keystone.toml`)
 | Feature | Rule |

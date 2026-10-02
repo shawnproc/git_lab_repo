@@ -34,7 +34,8 @@ backend/src/keystone_ledger/
                      fundamentals.py (SEC cache), sec_provider.py (EDGAR frames API)
   db/                models.py (SQLAlchemy), session.py, types.py (UTCDateTime)
 backend/tests/       pytest; fakes in conftest.py, no network in tests
-frontend/src/        React + TS + Tailwind v4; api.ts is the only fetch() caller
+frontend/src/        React + TS + Tailwind v4; api.ts is the only fetch() caller; pages/ (Home, Plan,
+                     Money, Charts, Learn); components/ui.tsx (Explain, StaleBanner, ...)
 config/              keystone.example.toml (must equal defaults; a test enforces it)
 content/learn.json   glossary, FAQ, links (https only, each verified before adding)
 ```
@@ -52,6 +53,10 @@ content/learn.json   glossary, FAQ, links (https only, each verified before addi
   testable against known values; chart events use only data up to each day (no look-ahead).
 - Tests: no network. Use the fakes in `conftest.py` (`FakeClock`, `FakePriceProvider`,
   `FakeMacroProvider`, `FakeFundamentalsProvider`).
+- **Write for a beginner.** Every user-facing string is plain English: say what a term means the
+  first time, prefer "$1 of sales keeps 44¢" to "44% operating margin", and pair each screen with an
+  `Explain` box. Never imply a buy/sell instruction from mood or chart events.
+- `tasks.ps1` must stay plain ASCII and Windows PowerShell 5.1 compatible (no `&&`, `??`, ternary).
 - Keep commits small, with imperative messages.
 
 ## Commands
