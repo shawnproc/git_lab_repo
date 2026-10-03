@@ -1,0 +1,100 @@
+# Keystone Ledger plan. Copy to config/keystone.toml (git-ignored) to customize.
+#
+# * Read once at startup: restart the app after editing.
+# * Every change is recorded (with a diff) in the config_audit table, visible at /api/config.
+# * Hard limits enforced in code: no single stock above 10% of the portfolio; 1-3 core funds whose
+#   weights must add up to core_pct; core_pct + stocks_pct = 100. A file that breaks them won't load.
+
+[plan]
+core_pct = 60.0          # broad index ETFs
+stocks_pct = 40.0        # split equally across the stocks that pass the screen
+max_stocks = 6
+max_per_sector = 2       # so the picks can't all be tech
+max_single_stock_pct = 8.0  # if fewer stocks pass, the excess goes to the core funds
+reference_amount = 10000.0  # dollar targets use this until you enter holdings
+
+[[plan.core_funds]]
+symbol = "VTI"
+name = "Vanguard Morningstar Total Stock Market ETF"
+weight_pct = 45.0
+why = "One fund that owns a small piece of nearly every public company in the US, big and small (it follows the Morningstar US Total Market Index, formerly called CRSP). It's the foundation of the plan: you don't have to pick winners, because you own them all."
+
+[[plan.core_funds]]
+symbol = "VXUS"
+name = "Vanguard Total International Stock ETF"
+weight_pct = 15.0
+why = "One fund that owns thousands of companies outside the US, in places like Japan, Europe and Canada (it follows the FTSE Global All Cap ex US Index). It protects you if the US has a slow decade while other countries do well."
+
+# Stocks to screen: symbol = sector. No banks/insurers/REITs (their financials don't fit the screen).
+[plan.candidates]
+AAPL = "Technology"
+MSFT = "Technology"
+NVDA = "Technology"
+AVGO = "Technology"
+ORCL = "Technology"
+ADBE = "Technology"
+CRM = "Technology"
+TXN = "Technology"
+QCOM = "Technology"
+ACN = "Technology"
+GOOGL = "Communication"
+META = "Communication"
+AMZN = "Consumer Discretionary"
+HD = "Consumer Discretionary"
+LOW = "Consumer Discretionary"
+MCD = "Consumer Discretionary"
+NKE = "Consumer Discretionary"
+SBUX = "Consumer Discretionary"
+PG = "Consumer Staples"
+KO = "Consumer Staples"
+PEP = "Consumer Staples"
+COST = "Consumer Staples"
+WMT = "Consumer Staples"
+JNJ = "Health Care"
+UNH = "Health Care"
+LLY = "Health Care"
+ABT = "Health Care"
+TMO = "Health Care"
+ISRG = "Health Care"
+V = "Financials"
+MA = "Financials"
+CAT = "Industrials"
+DE = "Industrials"
+HON = "Industrials"
+UNP = "Industrials"
+LMT = "Industrials"
+XOM = "Energy"
+CVX = "Energy"
+LIN = "Materials"
+NEE = "Utilities"
+
+[screen]
+revenue_years = 3                 # growth measured over this many years
+min_revenue_cagr_pct = 5.0         # revenue growth per year, at least
+min_operating_margin_pct = 12.0    # operating profit as % of sales, at least
+margin_trend_tolerance_pp = 1.0    # margin may slip this much vs 2 years ago
+require_positive_fcf = true
+max_debt_to_operating_income = 3.0 # long-term debt / one year's operating profit
+max_unavailable = 1                 # checks allowed to be "unavailable"
+
+[drift]
+max_abs_pp = 5.0             # flag if more than 5 percentage points off target
+max_relative_pct = 25.0      # ...or more than 25% off its own target
+
+[contribution]
+fractional_shares = true   # false = whole shares + leftover cash
+
+[mood]
+index = "^GSPC"
+ma_days = 200
+vix_green_below = 20.0
+vix_red_above = 30.0
+
+[data]
+price_provider = "yfinance"
+macro_provider = "fred_csv"
+fundamentals_provider = "sec_edgar"
+history_years = 5
+max_requests_per_second = 1.0
+sec_requests_per_second = 5.0   # SEC allows 10/s
+fundamentals_max_age_days = 30
