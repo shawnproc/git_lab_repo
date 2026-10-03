@@ -47,9 +47,32 @@ describe('Robinhood activity report', () => {
   })
 
   it('reports codes it does not understand instead of guessing', () => {
-    const r = parseRobinhood([HEAD, row('8/20/2026', 'XYZ', 'Merger', 'MRGS', '5', '', '')].join('\n'))
-    expect(r.warnings[0]).toMatch(/“MRGS” row changed shares/)
+    const r = parseRobinhood([HEAD, row('8/20/2026', 'XYZ', 'Something new', 'ZZZX', '5', '', '')].join('\n'))
+    expect(r.warnings[0]).toMatch(/“ZZZX” row changed shares/)
     expect(r.shares).toEqual({})
+  })
+
+  it('handles a merger: the "S" row removes the old stock, the plain row adds the new one', () => {
+    // 2 OLD (+ a reinvested sliver) become NEW at 0.25 each. Robinhood rounds the removal to 4 places.
+    const r = parseRobinhood([
+      HEAD,
+      row('11/22/2024', 'NEW', 'New Co CUSIP: 1', 'MRGS', '0.5004', '', ''),
+      row('11/22/2024', 'OLD', 'Old Co CUSIP: 2', 'MRGS', '2.0017S', '', ''),
+      row('9/11/2024', 'OLD', 'Old Co Dividend Reinvestment', 'Buy', '0.001654', '$25.00', '($0.04)'),
+      row('1/19/2021', 'OLD', 'Old Co', 'Buy', '2', '$8.00', '($16.00)'),
+    ].join('\n'))
+    expect(r.shares).toEqual({ NEW: 0.5004 }) // OLD fully gone, no 0.000046 left over
+    expect(r.warnings).toEqual([])
+  })
+
+  it('handles a reverse split that swaps the old CUSIP for a new one', () => {
+    const r = parseRobinhood([
+      HEAD,
+      row('2/3/2023', 'ABC', 'ABC CUSIP: new', 'SPR', '1', '', ''),
+      row('2/1/2023', 'ABC', 'ABC CUSIP: old', 'SPR', '10S', '', ''),
+      row('1/19/2021', 'ABC', 'ABC', 'Buy', '10', '$1.00', '($10.00)'),
+    ].join('\n'))
+    expect(r.shares).toEqual({ ABC: 1 })
   })
 
   it('rejects files that are not activity reports', () => {
