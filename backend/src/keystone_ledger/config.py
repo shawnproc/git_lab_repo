@@ -52,7 +52,7 @@ DEFAULT_CANDIDATES: dict[str, str] = {
 # a chart. Deliberately broad: the snapshot is public, and a short list would reveal what you own.
 DEFAULT_EXTRA_TICKERS: tuple[str, ...] = (
     # funds
-    "SPY", "VOO", "IVV", "SPLG", "QQQ", "QQQM", "VT", "ITOT", "SCHB", "SCHX", "SCHG", "SCHD",
+    "SPY", "VOO", "IVV", "QQQ", "QQQM", "VT", "ITOT", "SCHB", "SCHX", "SCHG", "SCHD",
     "VUG", "VTV", "VIG", "VYM", "DGRO", "JEPI", "IXUS", "VEA", "VWO", "BND", "AGG", "VNQ", "IWM",
     "DIA", "VGT", "XLK", "XLE", "XLF", "XLV", "SMH", "SOXX", "ARKK",
     # stocks

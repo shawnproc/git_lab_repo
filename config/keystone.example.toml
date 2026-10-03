@@ -102,7 +102,7 @@ fundamentals_max_age_days = 30
 # This list is public, so keep it broad: a short list would show what you own.
 extra_tickers = [
   # funds
-  "SPY", "VOO", "IVV", "SPLG", "QQQ", "QQQM", "VT", "ITOT", "SCHB", "SCHX", "SCHG", "SCHD",
+  "SPY", "VOO", "IVV", "QQQ", "QQQM", "VT", "ITOT", "SCHB", "SCHX", "SCHG", "SCHD",
   "VUG", "VTV", "VIG", "VYM", "DGRO", "JEPI", "IXUS", "VEA", "VWO", "BND", "AGG", "VNQ", "IWM",
   "DIA", "VGT", "XLK", "XLE", "XLF", "XLV", "SMH", "SOXX", "ARKK",
   # stocks
