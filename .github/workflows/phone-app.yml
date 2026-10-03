@@ -64,6 +64,9 @@ jobs:
 
   deploy:
     needs: build
+    # Only main publishes. A "Run workflow" on another branch is a dry run that still shows the
+    # snapshot status table on the run page.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

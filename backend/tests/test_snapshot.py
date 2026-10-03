@@ -4,6 +4,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from datetime import date
+from typing import Any
 
 import httpx
 import pandas as pd
@@ -12,9 +13,9 @@ import pytest
 from keystone_ledger.config import AppConfig
 from keystone_ledger.data.base import ProviderError
 from keystone_ledger.data.calendar import MarketCalendar
-from keystone_ledger.tools.snapshot import build_snapshot, learn_section
+from keystone_ledger.tools.snapshot import build_snapshot, learn_section, report
 
-from .conftest import FakeClock, FakeFundamentalsProvider
+from .conftest import FakeClock, FakeFundamentalsProvider, FakePriceProvider
 
 
 @dataclass
@@ -38,9 +39,27 @@ class FakeFred:
         return pd.Series(values, index=days, dtype=float)
 
 
-def _snap(clock: FakeClock, fred: FakeFred, sec: FakeFundamentalsProvider, previous=None):  # type: ignore[no-untyped-def]
+def _snap(
+    clock: FakeClock,
+    fred: FakeFred,
+    sec: FakeFundamentalsProvider,
+    previous: dict[str, Any] | None = None,
+    prices: FakePriceProvider | None = None,
+) -> dict[str, Any]:
     return build_snapshot(cfg=AppConfig(), fred=fred, sec=sec, calendar=MarketCalendar(),
-                          previous=previous, clock=clock)  # fmt: skip
+                          prices=prices, previous=previous, clock=clock)  # fmt: skip
+
+
+@dataclass
+class FlakyPrices(FakePriceProvider):
+    """Fails for the listed symbols only."""
+
+    broken: tuple[str, ...] = ()
+
+    def fetch_daily_bars(self, symbol: str, start: date, end: date) -> pd.DataFrame:
+        if symbol in self.broken:
+            raise ProviderError(f"yfinance: no data for {symbol}")
+        return super().fetch_daily_bars(symbol, start, end)
 
 
 def test_snapshot_has_mood_plan_and_only_public_data(
@@ -58,7 +77,9 @@ def test_snapshot_has_mood_plan_and_only_public_data(
     assert snap["plan"]["stale"] is False
     assert snap["rules"]["drift"] == {"max_abs_pp": 5.0, "max_relative_pct": 25.0}
     # Only public sections, and nothing that looks like an email address (the SEC contact).
-    assert set(snap) == {"schema", "app_version", "generated_at", "mood", "plan", "rules", "learn"}
+    assert set(snap) == {
+        "schema", "app_version", "generated_at", "mood", "plan", "prices", "rules", "learn"
+    }  # fmt: skip
     assert not re.search(r"[\w.+-]+@[\w-]+\.[\w.]+", text)
 
 
@@ -102,3 +123,62 @@ def test_learn_section_stamps_links_that_open() -> None:
     assert out["links"]
     assert all("investor.gov" in link["url"] for link in out["links"])
     assert out["pending_links"] > 0
+
+
+def test_prices_for_every_plan_ticker(clock: FakeClock, calendar: MarketCalendar) -> None:
+    prices = FakePriceProvider(calendar)
+    snap = _snap(clock, FakeFred(calendar), FakeFundamentalsProvider(), prices=prices)
+    p = snap["prices"]
+    assert set(p["quotes"]) == {t["symbol"] for t in snap["plan"]["targets"]}
+    assert p["stale"] is False and p["missing"] == [] and p["source"] == "fake_prices"
+    q = p["quotes"]["VTI"]
+    assert q["change_pct"] == pytest.approx((q["close"] / q["prev_close"] - 1) * 100, abs=1e-3)
+    assert snap["mood"]["source"].startswith("FRED")  # Yahoo only when FRED fails
+    assert not any(c[0].startswith("^") for c in prices.calls)
+
+
+def test_missing_ticker_is_listed_not_filled(clock: FakeClock, calendar: MarketCalendar) -> None:
+    prices = FlakyPrices(calendar, broken=("KO",))
+    snap = _snap(clock, FakeFred(calendar), FakeFundamentalsProvider(), prices=prices)
+    p = snap["prices"]
+    assert "KO" not in p["quotes"] and p["missing"] == ["KO"]
+    assert p["stale"] is True and "no price for KO" in p["reason"]
+    assert "yfinance: no data for KO" in p["last_error"]
+
+
+def test_all_prices_fail_carries_previous(clock: FakeClock, calendar: MarketCalendar) -> None:
+    good = _snap(clock, FakeFred(calendar), FakeFundamentalsProvider(),
+                 prices=FakePriceProvider(calendar))  # fmt: skip
+    bad = _snap(clock, FakeFred(calendar), FakeFundamentalsProvider(), previous=good,
+                prices=FakePriceProvider(calendar, fail=ProviderError("yfinance: blocked")))  # fmt: skip
+    assert bad["prices"]["quotes"] == good["prices"]["quotes"]
+    assert bad["prices"]["stale"] is True and "yfinance: blocked" in bad["prices"]["reason"]
+
+
+def test_mood_falls_back_to_yahoo_when_fred_fails(
+    clock: FakeClock, calendar: MarketCalendar
+) -> None:
+    prices = FakePriceProvider(calendar)
+    snap = _snap(clock, FakeFred(calendar, fail=True), FakeFundamentalsProvider(), prices=prices)
+    m = snap["mood"]
+    assert m["source"].startswith("Yahoo Finance") and m["result"]["mood"] != "unknown"
+    assert "fred: HTTP 503" in m["last_error"]  # the FRED failure is still reported
+    assert {"^GSPC", "^VIX"} <= {c[0] for c in prices.calls}
+
+
+def test_no_source_at_all_says_why(clock: FakeClock, calendar: MarketCalendar) -> None:
+    prices = FakePriceProvider(calendar, fail=ProviderError("yfinance: blocked"))
+    snap = _snap(clock, FakeFred(calendar, fail=True), FakeFundamentalsProvider(), prices=prices)
+    assert snap["mood"]["result"]["mood"] == "unknown"
+    assert (
+        "fred: HTTP 503" in snap["mood"]["reason"] and "yfinance: blocked" in snap["mood"]["reason"]
+    )
+
+
+def test_report_lists_each_part_and_ticker(clock: FakeClock, calendar: MarketCalendar) -> None:
+    snap = _snap(clock, FakeFred(calendar), FakeFundamentalsProvider(),
+                 prices=FlakyPrices(calendar, broken=("KO",)))  # fmt: skip
+    text = report(snap)
+    assert "| Market mood | ✅ fresh |" in text
+    assert "| Ticker prices | ⚠️ stale |" in text and "no price for KO" in text
+    assert "| VTI |" in text

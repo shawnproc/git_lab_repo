@@ -33,7 +33,8 @@ and your wall are saved **only on your phone**.
    **New repository secret**. Name: `SEC_USER_AGENT`. Value: your name and email, for example
    `Jane Smith jane@example.com`. Secrets are hidden, even in a public repository.
 5. **Run it the first time.** **Actions** tab → **Daily data + iPhone app** → **Run workflow**.
-   Wait for the green check (about 3 minutes).
+   Wait for the green check (about 3 minutes). Click the run to see a **Today's snapshot** table:
+   ✅ or ⚠️ for the market mood, ticker prices and company reports, with the reason for any ⚠️.
 
 ### Put it on your Home Screen
 1. On your iPhone, open **Safari** and go to `https://<your-github-name>.github.io/<repo-name>/`
