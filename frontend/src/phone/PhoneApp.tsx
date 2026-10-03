@@ -3,11 +3,13 @@ import { localMonth, type Learn, type MoodResult, type Plan as PlanData, type Sc
 import { KeystoneLogo, MoodArch, SpiritLevel } from '../components/brand'
 import { GrowingWall, WallStats } from '../components/GrowingWall'
 import { Card, Explain, PageHeader } from '../components/ui'
-import { fmtMoney, fmtMonth, fmtPct, fmtShares, fmtSignedPct, fmtTimestamp, gainClass } from '../format'
+import { fmtDay, fmtMoney, fmtMonth, fmtPct, fmtShares, fmtSignedMoney, fmtSignedPct, fmtTimestamp, gainClass } from '../format'
+import { ValueChart } from '../components/ValueChart'
 import { LearnView } from '../pages/Learn'
 import { PlanView } from '../pages/Plan'
 import { type Theme, applyTheme, loadTheme } from '../theme'
 import { buildWall, drift, type DriftRules, type PlanTarget, splitContribution } from './logic'
+import { change, chartable, type History, holdingValues, inRange, type Point, type Quote, RANGES, type Range, tickerSeries, valueSeries } from './portfolio'
 import { askPersistent, backupBlob, load, newId, type PhoneData, readBackup, save } from './store'
 
 // ---------------------------------------------------------------------------------------------
@@ -21,25 +23,23 @@ interface Section {
   last_error: string
 }
 
-export interface Quote {
-  close: number
-  prev_close: number | null
-  change_pct: number | null
-  day: string
-}
-
 export interface Snapshot {
   schema: 1
   generated_at: string
   mood: Section & { result: MoodResult; index_day: string | null; vix_day: string | null }
   plan: Section & { targets: PlanTarget[]; screen: ScreenResult[] }
   /** Optional: snapshots built before prices were added don't have it. */
-  prices?: Section & { quotes: Record<string, Quote>; missing: string[] }
+  prices?: Section & { quotes: Record<string, Quote>; history?: History; missing: string[] }
   rules: { drift: DriftRules }
   learn: Learn
 }
 
 const MAX_AGE_DAYS = 4 // a long weekend plus a missed run
+const NO_HISTORY: History = { days: [], closes: {} }
+
+const quotesOf = (snap: Snapshot): Record<string, Quote> => snap.prices?.quotes ?? {}
+const historyOf = (snap: Snapshot): History => snap.prices?.history ?? NO_HISTORY
+const valuesOf = (snap: Snapshot, data: PhoneData) => holdingValues(data.shares, data.holdings, quotesOf(snap))
 
 async function fetchSnapshot(): Promise<Snapshot> {
   const res = await fetch('./snapshot.json', { cache: 'no-cache', credentials: 'omit', redirect: 'error' })
@@ -77,13 +77,13 @@ function Stamp({ snap }: { snap: Snapshot }) {
 
 const MOOD_LABEL = { green: 'Green', yellow: 'Yellow', red: 'Red', unknown: 'Not enough data yet' } as const
 
-function Today({ snap, data }: { snap: Snapshot; data: PhoneData }) {
+function Today({ snap, data, theme }: { snap: Snapshot; data: PhoneData; theme: Theme }) {
   const wall = buildWall(data.entries, localMonth())
   const m = snap.mood.result
   return (
     <div className="space-y-5">
-      <PageHeader title="Today" intro={`Market data from the close on ${snap.mood.index_day ? fmtMonthDay(snap.mood.index_day) : '—'}.`} />
       <Stamp snap={snap} />
+      <YourMoney snap={snap} data={data} theme={theme} />
       <Card>
         <MoodArch mood={m.mood} />
         <div className="eyebrow mt-4">Market mood</div>
@@ -98,7 +98,7 @@ function Today({ snap, data }: { snap: Snapshot; data: PhoneData }) {
           <p className="muted text-xs">Source: {snap.mood.source}, fetched {fmtTimestamp(snap.mood.fetched_at)}.</p>
         </Explain>
       </Card>
-      <Tickers snap={snap} />
+      <Tickers snap={snap} theme={theme} />
       <Card title="This month">
         <p className="serif text-lg">{wall.message}</p>
         <a href="#/invest" className="btn mt-4 w-full">{wall.this_month_laid ? 'Add more this month' : 'Invest this month'} →</a>
@@ -108,7 +108,78 @@ function Today({ snap, data }: { snap: Snapshot; data: PhoneData }) {
   )
 }
 
-function Tickers({ snap }: { snap: Snapshot }) {
+const RANGE_WORDS: Record<Range, string> = { '1W': 'Past week', '1M': 'Past month', '3M': 'Past 3 months', YTD: 'This year', '1Y': 'Past year' }
+
+/** Big number + change + scrubbable line + range buttons. Used for your money and each ticker. */
+function RangeChart({ series, theme, eyebrow, label, defaultRange = '1Y' }: {
+  series: Point[]; theme: Theme; eyebrow: string; label: string; defaultRange?: Range
+}) {
+  const [range, setRange] = useState<Range>(defaultRange)
+  const [hover, setHover] = useState<Point | null>(null)
+  const { points, base } = useMemo(() => inRange(series, range), [series, range])
+  const last = points.at(-1)
+  if (!last) return null
+  const shown = hover ?? last
+  const c = change(shown.value, base?.value ?? null)
+  const up = (change(last.value, base?.value ?? null).amount ?? 0) >= 0
+  const dir = (c.amount ?? 0) > 0 ? '▲' : (c.amount ?? 0) < 0 ? '▼' : ''
+  return (
+    <div>
+      <div className="eyebrow">{eyebrow}</div>
+      <div className="serif text-5xl font-bold tabular-nums" aria-live="polite">{fmtMoney(shown.value)}</div>
+      <div className={`mt-1 font-mono text-sm ${gainClass(c.amount)}`}>
+        <span aria-hidden>{dir} </span>{fmtSignedMoney(c.amount)} ({fmtSignedPct(c.pct)})
+        <span className="muted ml-2 font-sans">{hover ? `since ${fmtDay(base?.day ?? last.day)}` : RANGE_WORDS[range]}</span>
+      </div>
+      <div className="muted text-xs">{hover ? fmtDay(hover.day) : `As of the close on ${fmtMonthDay(last.day)}`}</div>
+      <div className="mt-3">
+        <ValueChart points={points} base={base?.value ?? null} up={up} theme={theme} onHover={setHover} label={label} />
+      </div>
+      <div role="group" aria-label="Time range" className="mt-2 flex justify-between">
+        {RANGES.map((r) => (
+          <button key={r} type="button" aria-pressed={r === range} onClick={() => { setRange(r); setHover(null) }}
+            className={`px-3 py-1 font-mono text-xs font-bold ${r === range ? 'bg-[var(--ink)] text-[var(--panel)]' : 'muted'}`}>{r}</button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function YourMoney({ snap, data, theme }: { snap: Snapshot; data: PhoneData; theme: Theme }) {
+  const history = historyOf(snap)
+  const syms = useMemo(() => chartable(data.shares, history), [data.shares, history])
+  const series = useMemo(() => valueSeries(data.shares, history, syms), [data.shares, history, syms])
+  const values = valuesOf(snap, data)
+  const outside = Object.keys(values).filter((s) => !syms.includes(s)).sort()
+  const outsideTotal = outside.reduce((a, s) => a + (values[s] ?? 0), 0)
+  if (series.length === 0) {
+    return (
+      <Card>
+        <div className="eyebrow">Your money</div>
+        {Object.keys(values).length > 0 && <div className="serif text-5xl font-bold">{fmtMoney(outsideTotal)}</div>}
+        <p className="mt-2 text-sm">Type how many <b>shares</b> you own on the Invest tab and your chart appears here, updated every weekday.</p>
+        <a href="#/invest" className="btn mt-4 w-full">Add my shares →</a>
+      </Card>
+    )
+  }
+  return (
+    <Card>
+      <RangeChart series={series} theme={theme} eyebrow="Your money" label="Line chart of what your shares were worth each day" />
+      {outside.length > 0 && (
+        <p className="muted mt-3 text-xs">Not on the line: {outside.join(', ')} ({fmtMoney(outsideTotal)}, typed in dollars, so there’s no daily price). Everything together: <b>{fmtMoney((series.at(-1)?.value ?? 0) + outsideTotal)}</b>.</p>
+      )}
+      <Explain>
+        <p>The line shows what <b>the shares you own today</b> ({syms.join(', ')}) were worth at the end of each trading day.</p>
+        <p>It doesn’t know when you bought them, so it isn’t your account history (your broker app has that). It shows how your mix has moved.</p>
+        <p><b>Drag your finger across the line</b> to see any day. The dotted line is where the period started. ▲ green means up, ▼ red means down.</p>
+        <p>Prices are the official closing prices, updated every weekday evening, not live. For long-term investing that’s all you need, and it saves you from watching every wiggle.</p>
+      </Explain>
+    </Card>
+  )
+}
+
+function Tickers({ snap, theme }: { snap: Snapshot; theme: Theme }) {
+  const [open, setOpen] = useState<string | null>(null)
   const quotes = snap.prices?.quotes ?? {}
   const days = [...new Set(Object.values(quotes).map((q) => q.day))].sort()
   const last = days.at(-1)
@@ -121,17 +192,25 @@ function Tickers({ snap }: { snap: Snapshot }) {
             const up = (q?.change_pct ?? 0) > 0
             const down = (q?.change_pct ?? 0) < 0
             return (
-              <li key={t.symbol} className="flex items-center gap-3 py-2 text-sm">
-                <span className="w-14 font-mono font-bold">{t.symbol}</span>
-                <span className="muted min-w-0 flex-1 truncate text-xs">{t.name}</span>
-                {q ? (
-                  <>
-                    <span className="font-mono">{fmtMoney(q.close)}</span>
-                    <span className={`w-20 text-right font-mono ${gainClass(q.change_pct)}`}>
-                      <span aria-hidden>{up ? '▲ ' : down ? '▼ ' : ''}</span>{fmtSignedPct(q.change_pct)}
-                    </span>
-                  </>
-                ) : <span className="muted text-xs">no price today</span>}
+              <li key={t.symbol} className="py-1 text-sm">
+                <button type="button" className="flex w-full items-center gap-3 py-1 text-left" aria-expanded={open === t.symbol}
+                  disabled={!q} onClick={() => { setOpen(open === t.symbol ? null : t.symbol) }}>
+                  <span className="w-14 font-mono font-bold">{t.symbol}</span>
+                  <span className="muted min-w-0 flex-1 truncate text-xs">{t.name}</span>
+                  {q ? (
+                    <>
+                      <span className="font-mono">{fmtMoney(q.close)}</span>
+                      <span className={`w-20 text-right font-mono ${gainClass(q.change_pct)}`}>
+                        <span aria-hidden>{up ? '▲ ' : down ? '▼ ' : ''}</span>{fmtSignedPct(q.change_pct)}
+                      </span>
+                    </>
+                  ) : <span className="muted text-xs">no price today</span>}
+                </button>
+                {open === t.symbol && (
+                  <div className="pb-3 pt-2">
+                    <RangeChart series={tickerSeries(t.symbol, historyOf(snap))} theme={theme} eyebrow={`${t.symbol} price`} label={`Line chart of ${t.symbol}'s closing price`} />
+                  </div>
+                )}
               </li>
             )
           })}
@@ -139,6 +218,7 @@ function Tickers({ snap }: { snap: Snapshot }) {
       )}
       <Explain>
         <p><b>Last close</b> is the price when the market closed{last ? ` on ${fmtMonthDay(last)}` : ''}. The <b>%</b> is the change from the day before: ▲ up, ▼ down.</p>
+        <p><b>Tap a ticker</b> to see its chart.</p>
         <p>Prices wiggle every day. That’s normal and <b>not a reason to buy or sell</b>. Your plan works on months and years, not days.</p>
         <p className="muted text-xs">Source: {snap.prices ? `${snap.prices.source}, fetched ${fmtTimestamp(snap.prices.fetched_at)}` : 'not available yet'}. Your own values come from your broker app.</p>
       </Explain>
@@ -153,9 +233,16 @@ function fmtMonthDay(day: string): string {
 
 function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void }) {
   const targets = snap.plan.targets
-  const symbols = useMemo(() => [...new Set([...targets.map((t) => t.symbol), ...Object.keys(data.holdings)])], [targets, data.holdings])
-  const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(symbols.map((s) => [s, data.holdings[s] !== undefined ? String(data.holdings[s]) : ''])))
+  const quotes = quotesOf(snap)
+  const held = valuesOf(snap, data)
+  const priced = (s: string) => s in quotes
+  const symbols = useMemo(() => [...new Set([...targets.map((t) => t.symbol), ...Object.keys(data.holdings), ...Object.keys(data.shares)])],
+    [targets, data.holdings, data.shares])
+  const initial = (s: string): string => {
+    const v = priced(s) ? data.shares[s] : data.holdings[s]
+    return v === undefined ? '' : String(v)
+  }
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(symbols.map((s) => [s, initial(s)])))
   const [extra, setExtra] = useState('')
   const [saved, setSaved] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
@@ -164,25 +251,32 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
   const [addToHoldings, setAddToHoldings] = useState(true)
   const [laid, setLaid] = useState(false)
 
-  const rows = drift(targets, data.holdings, snap.rules.drift)
+  const rows = drift(targets, held, snap.rules.drift)
   const flagged = rows.filter((r) => r.flagged).length
-  const hasValues = Object.keys(data.holdings).length > 0
+  const hasValues = Object.keys(held).length > 0
 
   function saveValues(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
-    const next: Record<string, number> = {}
+    const shares: Record<string, number> = {}
+    const dollars: Record<string, number> = {}
     for (const [s, raw] of Object.entries(values)) {
       const txt = raw.replace(/[$,\s]/g, '')
-      if (!txt) continue
+      if (!txt) {
+        // An older dollar value for a ticker that now has a price stays until you type shares.
+        if (priced(s) && data.holdings[s] !== undefined) dollars[s] = data.holdings[s]
+        continue
+      }
       const n = Number(txt)
-      if (!Number.isFinite(n) || n < 0) {
-        setProblem(`“${raw}” for ${s} isn’t a dollar amount. Type something like 1250.50.`)
+      if (!Number.isFinite(n) || n < 0 || n > 1e9) {
+        setProblem(priced(s)
+          ? `“${raw}” for ${s} isn’t a number of shares. Type something like 2.5.`
+          : `“${raw}” for ${s} isn’t a dollar amount. Type something like 1250.50.`)
         return
       }
-      if (n > 0) next[s] = n
+      if (n > 0) (priced(s) ? shares : dollars)[s] = n
     }
     setProblem(null)
-    update({ ...data, holdings: next, values_as_of: new Date().toISOString() })
+    update({ ...data, shares, holdings: dollars, values_as_of: new Date().toISOString() })
     setSaved(true)
   }
 
@@ -206,23 +300,33 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
     }
     setProblem(null)
     setLaid(false)
-    setSplit(splitContribution(n, targets, data.holdings))
+    setSplit(splitContribution(n, targets, held))
   }
 
   function layStone() {
     if (!split) return
     const total = split.allocations.reduce((a, x) => a + x.amount, 0)
     const holdings = { ...data.holdings }
-    if (addToHoldings) for (const a of split.allocations) holdings[a.symbol] = Math.round(((holdings[a.symbol] ?? 0) + a.amount) * 100) / 100
+    const shares = { ...data.shares }
+    if (addToHoldings) {
+      for (const a of split.allocations) {
+        const q = quotes[a.symbol]
+        // Tickers with a price track shares (estimated at the last close); others track dollars.
+        if (q && holdings[a.symbol] === undefined) shares[a.symbol] = Math.round(((shares[a.symbol] ?? 0) + a.amount / q.close) * 1e6) / 1e6
+        else holdings[a.symbol] = Math.round(((holdings[a.symbol] ?? 0) + a.amount) * 100) / 100
+      }
+    }
     update({
       ...data,
       holdings,
+      shares,
       values_as_of: addToHoldings ? new Date().toISOString() : data.values_as_of,
       entries: [...data.entries, { id: newId(), month: localMonth(), amount: Math.round(total * 100) / 100, note: '', created_at: new Date().toISOString() }],
     })
     if (addToHoldings) {
       const updated = { ...values }
-      for (const [k, v] of Object.entries(holdings)) updated[k] = String(v)
+      for (const [k, v] of Object.entries(holdings)) if (!priced(k)) updated[k] = String(v)
+      for (const [k, v] of Object.entries(shares)) if (priced(k)) updated[k] = String(v)
       setValues(updated)
     }
     setLaid(true)
@@ -233,21 +337,37 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
       <PageHeader title="Invest" intro="Three steps, about two minutes. Keep your broker app open alongside." />
       <Stamp snap={snap} />
 
-      <Card title="1 · What your holdings are worth">
+      <Card title="1 · What you own">
         <p className="muted mb-3 text-sm">
-          Open your broker app and copy the <b>current value</b> of each one. Leave blank what you don’t own.
+          Open your broker app and copy how many <b>shares</b> you own of each one (fractions are fine, like 0.4521). Leave blank what you don’t own.
           {data.values_as_of && ` Last updated ${fmtTimestamp(data.values_as_of)}.`}
         </p>
         <form onSubmit={saveValues} className="space-y-2">
           {symbols.concat(Object.keys(values).filter((s) => !symbols.includes(s))).map((s) => {
             const t = targets.find((x) => x.symbol === s)
+            const q = quotes[s]
+            const n = Number((values[s] ?? '').replace(/[,\s]/g, ''))
             return (
-              <label key={s} className="flex items-center gap-3">
+              <label key={s} className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
                 <span className="w-16 font-mono font-bold">{s}</span>
                 <span className="muted hidden flex-1 truncate text-xs sm:inline">{t ? t.name : 'not in your plan'}</span>
-                <span className="font-mono">$</span>
-                <input className="input w-36" inputMode="decimal" placeholder="0" value={values[s] ?? ''} aria-label={`${s} value in dollars`}
-                  onChange={(e) => { setSaved(false); setValues({ ...values, [s]: e.target.value }) }} />
+                {q ? (
+                  <>
+                    <input className="input ml-auto w-28 sm:ml-0" inputMode="decimal" placeholder="0" value={values[s] ?? ''} aria-label={`${s} shares`}
+                      onChange={(e) => { setSaved(false); setValues({ ...values, [s]: e.target.value }) }} />
+                    <span className="muted w-24 text-right font-mono text-xs">{n > 0 ? `≈ ${fmtMoney(n * q.close)}` : 'shares'}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="ml-auto font-mono sm:ml-0">$</span>
+                    <input className="input w-28" inputMode="decimal" placeholder="0" value={values[s] ?? ''} aria-label={`${s} value in dollars`}
+                      onChange={(e) => { setSaved(false); setValues({ ...values, [s]: e.target.value }) }} />
+                    <span className="muted w-24 text-right text-xs">no price: type $</span>
+                  </>
+                )}
+                {q && !values[s] && data.holdings[s] !== undefined && (
+                  <span className="muted w-full pl-[4.75rem] text-xs">Using the {fmtMoney(data.holdings[s])} you typed before. Type shares to get the chart.</span>
+                )}
               </label>
             )
           })}
@@ -274,8 +394,9 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
             </ul>
           </div>
         )}
-        <Explain title="Why type the values?">
-          <p>Your broker app already shows exactly what each holding is worth right now, which is more accurate than any free price feed. Typing them in takes a minute and keeps this app simple and private.</p>
+        <Explain title="Why type shares?">
+          <p>Shares are the one number that doesn’t change by itself. The app multiplies them by each evening’s closing price, so your total and your chart stay current without retyping.</p>
+          <p>Your shares never leave this phone. For a ticker with no daily price, type its dollar value instead.</p>
           <p>The <b>level</b> shows each holding against its target: middle line = target, bubble = you. Green inside the ±5-point marks, amber outside.</p>
         </Explain>
       </Card>
@@ -325,7 +446,7 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
           <>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={addToHoldings} onChange={(e) => { setAddToHoldings(e.target.checked) }} />
-              Also add these amounts to my holdings values
+              Also add these to what I own (shares estimated at the last close; fix them from your broker app later)
             </label>
             <button className="btn mt-3 w-full" onClick={layStone}>
               I invested {fmtMoney(split.allocations.reduce((a, x) => a + x.amount, 0))}. Lay the stone
@@ -339,7 +460,7 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
 }
 
 function PlanPage({ snap, data }: { snap: Snapshot; data: PhoneData }) {
-  const total = Object.values(data.holdings).reduce((a, v) => a + v, 0)
+  const total = Object.values(valuesOf(snap, data)).reduce((a, v) => a + v, 0)
   const basis = total > 0 ? total : 10_000
   const plan: PlanData = {
     targets: snap.plan.targets.map((t) => ({ ...t, target_value: Math.round((t.target_pct / 100) * basis * 100) / 100 })),
@@ -516,7 +637,7 @@ export default function PhoneApp() {
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-32 pt-6">
         {error && <p role="alert" className="mb-4 border-l-4 border-[var(--color-down)] p-3 text-sm">{error}</p>}
         {!snap && !error && <p className="muted">Loading today’s data…</p>}
-        {snap && tab === 'today' && <Today snap={snap} data={data} />}
+        {snap && tab === 'today' && <Today snap={snap} data={data} theme={theme} />}
         {snap && tab === 'invest' && <Invest snap={snap} data={data} update={update} />}
         {snap && tab === 'plan' && <PlanPage snap={snap} data={data} />}
         {tab === 'wall' && <WallPage data={data} update={update} />}

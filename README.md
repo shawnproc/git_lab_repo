@@ -43,8 +43,9 @@ and your wall are saved **only on your phone**.
 3. Open **Keystone** from your Home Screen. It opens full-screen, like an app.
 
 ### Your monthly routine (about 2 minutes)
-**Invest** tab → type each holding's value from your broker app → **Split it** → buy those dollar
-amounts in your broker app → **Lay the stone**. Every few months: **Wall** tab → **Save a backup**
+**Invest** tab → type how many **shares** you own of each (from your broker app; only when they
+change) → **Split it** → buy those dollar amounts in your broker app → **Lay the stone**. The
+**Today** tab then shows your money as a chart (1W to 1Y), priced at each weekday's close. Every few months: **Wall** tab → **Save a backup**
 → save it to Files or iCloud Drive.
 
 > Changing your plan (the 60/40 split, the company list, and so on): edit

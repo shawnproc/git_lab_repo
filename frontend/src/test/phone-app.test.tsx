@@ -3,6 +3,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PhoneApp, { type Snapshot } from '../phone/PhoneApp'
 import { learn, plan } from './fixtures'
 
+vi.mock('lightweight-charts', () => ({
+  createChart: () => ({
+    addSeries: () => ({ setData: () => undefined, createPriceLine: () => undefined }),
+    timeScale: () => ({ fitContent: () => undefined }),
+    subscribeCrosshairMove: () => undefined,
+    unsubscribeCrosshairMove: () => undefined,
+    remove: () => undefined,
+  }),
+  LineSeries: {},
+  CrosshairMode: { Magnet: 1 },
+  LineStyle: { Solid: 0, Dotted: 1 },
+  TrackingModeExitMode: { OnTouchEnd: 1 },
+}))
+
 const snapshot: Snapshot = {
   schema: 1,
   generated_at: new Date().toISOString(),
@@ -18,6 +32,10 @@ const snapshot: Snapshot = {
     quotes: {
       VTI: { close: 312.5, prev_close: 310, change_pct: 0.8065, day: '2026-10-02' },
       VXUS: { close: 70, prev_close: 71, change_pct: -1.4085, day: '2026-10-02' },
+    },
+    history: {
+      days: ['2026-09-30', '2026-10-01', '2026-10-02'],
+      closes: { VTI: [300, 310, 312.5], VXUS: [72, 71, 70] },
     },
     missing: ['MSFT'], source: 'yfinance', fetched_at: new Date().toISOString(), stale: true, reason: 'no price for MSFT', last_error: 'MSFT: yfinance: no data',
   },
@@ -54,18 +72,21 @@ describe('iPhone app', () => {
     window.location.hash = '#/invest'
     vi.stubGlobal('fetch', fetchSpy)
     render(<PhoneApp />)
-    fireEvent.change(await screen.findByLabelText('VTI value in dollars'), { target: { value: '$1,000' } })
+    fireEvent.change(await screen.findByLabelText('VTI shares'), { target: { value: '3.2' } })
+    expect(screen.getByText('≈ $1,000.00')).toBeInTheDocument() // 3.2 x $312.50
+    expect(screen.getByLabelText('MSFT value in dollars')).toBeInTheDocument() // no price, so dollars
     fireEvent.click(screen.getByRole('button', { name: 'Save values' }))
     expect(screen.getByText('✓ Saved on this phone')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Split it' }))
     expect(screen.getAllByText(/^Buy/).length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole('button', { name: /I invested \$500.00\. Lay the stone/ }))
     expect(await screen.findByText(/Stone laid for/)).toBeInTheDocument()
-    const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { holdings: Record<string, number>; entries: unknown[] }
+    const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { holdings: Record<string, number>; shares: Record<string, number>; entries: unknown[] }
     expect(saved.entries).toHaveLength(1)
     // VTI was already over its target, so the money went to the underweight holdings instead.
-    expect(saved.holdings.VTI).toBe(1000)
-    expect(saved.holdings.VXUS).toBeGreaterThan(0)
+    expect(saved.shares.VTI).toBe(3.2)
+    expect(saved.shares.VXUS).toBeGreaterThan(0) // priced: tracked as (estimated) shares
+    expect(saved.holdings.MSFT).toBeGreaterThan(0) // no price: tracked as dollars
     // Nothing personal was ever sent anywhere: the only request was the public snapshot.
     expect(fetchSpy.mock.calls.every((c) => String((c as unknown[])[0]).endsWith('snapshot.json'))).toBe(true)
   })
@@ -80,7 +101,8 @@ describe('iPhone app', () => {
   })
 
   it('works with an older snapshot that has no prices', async () => {
-    const { prices: _omit, ...old } = snapshot
+    const old: Snapshot = { ...snapshot }
+    delete old.prices
     start('#/today', old)
     expect(await screen.findByText('Green')).toBeInTheDocument()
     expect(screen.getAllByText('no price today')).toHaveLength(3)
@@ -91,6 +113,31 @@ describe('iPhone app', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Split it' }))
     // No values yet, so the split follows the targets: VTI gets 45% of $500 = $225.
     expect(screen.getByText('≈ 0.72 shares at the last close of $312.50')).toBeInTheDocument()
+  })
+
+  it('Today shows your money as a big number with a chart and time ranges', async () => {
+    localStorage.setItem('keystone.phone.v1', JSON.stringify({ version: 1, holdings: { ZZZ: 40 }, shares: { VTI: 2, VXUS: 10 }, values_as_of: null, entries: [] }))
+    start('#/today')
+    // 2 x 312.50 + 10 x 70 = 1,325.00; the 1Y range starts at the first close: 2 x 300 + 10 x 72 = 1,320
+    expect(await screen.findByText('$1,325.00')).toBeInTheDocument()
+    expect(screen.getByText('+$5.00 (+0.38%)')).toBeInTheDocument()
+    expect(screen.getAllByTestId('value-chart')).toHaveLength(1)
+    for (const r of ['1W', '1M', '3M', 'YTD', '1Y']) expect(screen.getByRole('button', { name: r })).toBeInTheDocument()
+    expect(screen.getByText(/Not on the line: ZZZ/)).toBeInTheDocument()
+    expect(screen.getByText('$1,365.00')).toBeInTheDocument() // everything together
+  })
+
+  it('Today without shares invites you to add them', async () => {
+    start('#/today')
+    expect(await screen.findByRole('link', { name: /Add my shares/ })).toHaveAttribute('href', '#/invest')
+  })
+
+  it('tapping a ticker opens its chart', async () => {
+    start('#/today')
+    fireEvent.click(await screen.findByRole('button', { name: /VTI/ }))
+    expect(screen.getByText('VTI price')).toBeInTheDocument()
+    expect(screen.getAllByTestId('value-chart')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /MSFT/ })).toBeDisabled() // no price, no chart
   })
 
   it('wall page works and offers backup', async () => {

@@ -11,30 +11,39 @@ const MAX_HOLDINGS = 50
 
 export interface PhoneData {
   version: 1
-  holdings: Record<string, number> // symbol -> dollar value you typed in
+  holdings: Record<string, number> // symbol -> dollar value you typed in (tickers with no price)
+  shares: Record<string, number> // symbol -> shares you own (value = shares x last close)
   values_as_of: string | null // when you last updated those values
   entries: Entry[] // the wall
 }
 
-export const empty = (): PhoneData => ({ version: 1, holdings: {}, values_as_of: null, entries: [] })
+export const empty = (): PhoneData => ({ version: 1, holdings: {}, shares: {}, values_as_of: null, entries: [] })
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
+function numberMap(raw: Record<string, unknown>, max: number): Record<string, number> {
+  const out: Record<string, number> = {}
+  const items = Object.entries(raw)
+  if (items.length > MAX_HOLDINGS) throw new Error('The backup has too many holdings.')
+  for (const [sym, v] of items) {
+    if (!SYMBOL.test(sym) || typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > max) {
+      throw new Error(`The backup has a bad holding: ${sym.slice(0, 16)}`)
+    }
+    out[sym] = v
+  }
+  return out
+}
+
 /** Parse untrusted JSON (storage or a backup file). Throws a plain-English error if invalid. */
 export function parseData(raw: unknown): PhoneData {
   if (!isObj(raw) || raw.version !== 1) throw new Error('This isn’t a Keystone Ledger backup file.')
-  const holdings: Record<string, number> = {}
   if (!isObj(raw.holdings)) throw new Error('The backup’s holdings are damaged.')
-  const hs = Object.entries(raw.holdings)
-  if (hs.length > MAX_HOLDINGS) throw new Error('The backup has too many holdings.')
-  for (const [sym, v] of hs) {
-    if (!SYMBOL.test(sym) || typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 1e10) {
-      throw new Error(`The backup has a bad holding: ${sym.slice(0, 16)}`)
-    }
-    holdings[sym] = v
-  }
+  const holdings = numberMap(raw.holdings, 1e10)
+  // Backups from before share counts existed have no `shares`: that's fine.
+  if (raw.shares !== undefined && !isObj(raw.shares)) throw new Error('The backup’s share counts are damaged.')
+  const shares = raw.shares === undefined ? {} : numberMap(raw.shares, 1e9)
   const asOf = raw.values_as_of
   if (asOf !== null && (typeof asOf !== 'string' || Number.isNaN(Date.parse(asOf)))) throw new Error('The backup’s date is damaged.')
   if (!Array.isArray(raw.entries) || raw.entries.length > MAX_ENTRIES) throw new Error('The backup’s wall is damaged.')
@@ -48,7 +57,7 @@ export function parseData(raw: unknown): PhoneData {
     }
     return { id, month, amount, note, created_at }
   })
-  return { version: 1, holdings, values_as_of: asOf, entries }
+  return { version: 1, holdings, shares, values_as_of: asOf, entries }
 }
 
 export function load(): PhoneData {

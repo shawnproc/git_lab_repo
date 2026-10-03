@@ -54,7 +54,7 @@ HISTORY_DAYS = 500  # comfortably more than 200 trading days
 FRED_LAG_SESSIONS = 1  # FRED posts daily series about one session behind
 YAHOO_INDEX = "^GSPC"
 YAHOO_VIX = "^VIX"
-PRICE_DAYS = 14  # calendar days of bars to fetch for a last + previous close
+HISTORY_CHART_DAYS = 370  # a year of daily closes for the phone's charts, plus a margin
 
 
 def _jsonable(obj: Any) -> Any:
@@ -147,20 +147,32 @@ def mood_section(
             "reason": f"no market data yet ({error})", "last_error": error}  # fmt: skip
 
 
+def _history_start(now: datetime) -> date:
+    """Enough for the phone's 1Y and YTD charts."""
+    return min(date(now.year, 1, 1), now.date() - timedelta(days=HISTORY_CHART_DAYS))
+
+
 def prices_section(
     now: datetime, prices: PriceProvider | None, symbols: list[str], cal: MarketCalendar,
-    previous: dict[str, Any] | None,
+    previous: dict[str, Any] | None, watch: list[str] | None = None,
 ) -> dict[str, Any]:  # fmt: skip
-    """Last close and day change for each plan ticker. A ticker that fails is left out (listed in
-    `missing`), never filled in."""
+    """Last close, day change and about a year of daily closes for each symbol.
+
+    `watch` (the plan's tickers) decides staleness; other symbols (the rest of the public company
+    list) are a bonus. A symbol that fails is listed in `missing` and gets no numbers: nothing is
+    filled in, and a day a symbol didn't trade is null in its history, never interpolated.
+    """
+    watch = symbols if watch is None else watch
     expected = cal.last_completed_session(now)
+    empty_history: dict[str, Any] = {"days": [], "closes": {}}
     if prices is None:
-        return {"quotes": {}, "missing": symbols, "source": "none",
+        return {"quotes": {}, "history": empty_history, "missing": symbols, "source": "none",
                 "expected_day": expected.isoformat(), "fetched_at": None, "stale": True,
                 "reason": "prices are not set up", "last_error": ""}  # fmt: skip
     quotes: dict[str, dict[str, Any]] = {}
+    series: dict[str, pd.Series] = {}
     errors: dict[str, str] = {}
-    start = now.date() - timedelta(days=PRICE_DAYS)
+    start = _history_start(now)
     for sym in symbols:
         try:
             bars, _ = validate_bars(prices.fetch_daily_bars(sym, start, now.date()))
@@ -171,6 +183,7 @@ def prices_section(
         if closes.empty:
             errors[sym] = "no recent prices"
             continue
+        series[sym] = closes
         last = float(closes.iloc[-1])
         prev = float(closes.iloc[-2]) if len(closes) > 1 else None
         quotes[sym] = {
@@ -184,22 +197,32 @@ def prices_section(
         carried = _carry(previous, "prices", error or "no symbols")
         if carried:
             return carried
-    behind = sorted(s for s, q in quotes.items() if q["day"] < expected.isoformat())
+    days = sorted(set().union(*(set(c.index) for c in series.values()))) if series else []
+    history = {
+        "days": [d.isoformat() for d in days],
+        "closes": {
+            sym: [None if pd.isna(v) else round(float(v), 4) for v in c.reindex(days)]
+            for sym, c in series.items()
+        },
+    }
+    behind = sorted(s for s in watch if s in quotes and quotes[s]["day"] < expected.isoformat())
     missing = [s for s in symbols if s not in quotes]
+    watch_missing = [s for s in watch if s not in quotes]
     reason = ""
     if not quotes:
         reason = "prices could not be fetched"
-    elif missing or behind:
-        parts = [f"no price for {', '.join(missing)}"] if missing else []
+    elif watch_missing or behind:
+        parts = [f"no price for {', '.join(watch_missing)}"] if watch_missing else []
         parts += [f"{', '.join(behind)} price is older than expected"] if behind else []
         reason = "; ".join(parts)
     return {
         "quotes": quotes,
+        "history": history,
         "missing": missing,
         "source": prices.name,
         "expected_day": expected.isoformat(),
         "fetched_at": now.isoformat() if quotes else None,
-        "stale": bool(missing or behind),
+        "stale": bool(watch_missing or behind),
         "reason": reason,
         "last_error": error,
     }
@@ -262,6 +285,14 @@ def learn_section(verify: bool, client: httpx.Client | None = None) -> dict[str,
     return for_display(content).model_dump(mode="json")
 
 
+def price_symbols(cfg: AppConfig, plan: dict[str, Any]) -> list[str]:
+    """The plan's tickers first, then the rest of the public company list (all from config, so
+    nothing personal), so a holding you add from that list gets a price and a chart too."""
+    syms = [t["symbol"] for t in plan["targets"]]
+    syms += [f.symbol for f in cfg.plan.core_funds] + list(cfg.plan.candidates)
+    return list(dict.fromkeys(syms))
+
+
 def build_snapshot(
     *,
     cfg: AppConfig,
@@ -282,7 +313,12 @@ def build_snapshot(
         "mood": mood_section(now, fred, cfg, calendar, previous, prices),
         "plan": plan,
         "prices": prices_section(
-            now, prices, [t["symbol"] for t in plan["targets"]], calendar, previous
+            now,
+            prices,
+            price_symbols(cfg, plan),
+            calendar,
+            previous,
+            watch=[t["symbol"] for t in plan["targets"]],
         ),
         "rules": {
             "drift": cfg.drift.model_dump(),
@@ -326,7 +362,8 @@ def report(snap: dict[str, Any]) -> str:
         lines.append(
             f"| {label} | {status} | {sec.get('source', '')} | {details.replace('|', '/')} |"
         )
-    quotes = snap["prices"].get("quotes", {})
+    watch = [t["symbol"] for t in snap["plan"]["targets"]]
+    quotes = {s: q for s, q in snap["prices"].get("quotes", {}).items() if s in watch}
     if quotes:
         lines += ["", "| Ticker | Last close | Day | Change |", "|---|---|---|---|"]
         for sym, q in quotes.items():
