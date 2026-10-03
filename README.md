@@ -42,9 +42,21 @@ and your wall are saved **only on your phone**.
 2. Tap the **Share** button (the square with an arrow) → **Add to Home Screen** → **Add**.
 3. Open **Keystone** from your Home Screen. It opens full-screen, like an app.
 
+### Bring in your Robinhood history (once, then whenever you like)
+1. In the Robinhood app: **Account** → **Menu** → **Reports and statements** → **Reports** →
+   **Generate new report**. Pick your investing account and a start date from when you opened it.
+2. Robinhood builds it in about 2 hours (up to a day). Download it to Files.
+3. In Keystone: **Invest** → **Import from Robinhood** → **Choose the report file** → check the
+   shares → **Use these**.
+
+The file is read on your phone and never uploaded. You get your real shares, your real account
+history on the **Today** chart (with "you added $X · the market moved $Y"), and a stone on your wall
+for every month you bought.
+
 ### Your monthly routine (about 2 minutes)
-**Invest** tab → type each holding's value from your broker app → **Split it** → buy those dollar
-amounts in your broker app → **Lay the stone**. Every few months: **Wall** tab → **Save a backup**
+**Invest** tab → type how many **shares** you own of each (from your broker app; only when they
+change) → **Split it** → buy those dollar amounts in your broker app → **Lay the stone**. The
+**Today** tab then shows your money as a chart (1W to 1Y), priced at each weekday's close. Every few months: **Wall** tab → **Save a backup**
 → save it to Files or iCloud Drive.
 
 > Changing your plan (the 60/40 split, the company list, and so on): edit

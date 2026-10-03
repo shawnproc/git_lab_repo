@@ -117,6 +117,19 @@ def test_yfinance_normalizes_and_passes_safe_options() -> None:
     assert list(df.columns) == ["open", "high", "low", "close", "adj_close", "volume"]
 
 
+def test_yfinance_reports_splits_from_the_same_request() -> None:
+    b = Behavior()
+    frame = _yf_frame()
+    frame["Dividends"] = [0.0, 0.0, 0.0]
+    frame["Stock Splits"] = [0.0, 10.0, 0.0]
+    b.result = frame
+    p = YFinanceProvider(NoWait(), ticker_factory=lambda s: FakeTicker(s, b))
+    bars, splits = p.fetch_history("NVDA", date(2026, 9, 30), date(2026, 10, 2))
+    assert splits == {date(2026, 10, 1): 10.0}
+    assert list(bars.columns) == ["open", "high", "low", "close", "adj_close", "volume"]
+    assert b.kwargs["actions"] is True
+
+
 def test_yfinance_error_mapping() -> None:
     from yfinance import exceptions as yfe
 

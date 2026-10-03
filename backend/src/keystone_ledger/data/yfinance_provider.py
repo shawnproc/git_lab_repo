@@ -53,6 +53,19 @@ def normalize_history(raw: pd.DataFrame) -> pd.DataFrame:
     return df.loc[:, list(BAR_COLUMNS)]
 
 
+def splits_from(raw: pd.DataFrame) -> dict[date, float]:
+    """Split ratios from yfinance's "Stock Splits" column (0 on ordinary days)."""
+    if raw.empty or "Stock Splits" not in raw.columns:
+        return {}
+    col = pd.to_numeric(raw["Stock Splits"], errors="coerce")
+    idx = pd.DatetimeIndex(raw.index)
+    return {
+        ts.date(): float(r)
+        for ts, r in zip(idx, col, strict=True)
+        if pd.notna(r) and 0 < float(r) < 1000 and float(r) != 1.0
+    }
+
+
 class YFinanceProvider:
     name = "yfinance"
 
@@ -65,6 +78,12 @@ class YFinanceProvider:
         self._ticker_factory = ticker_factory
 
     def fetch_daily_bars(self, symbol: str, start: date, end: date) -> pd.DataFrame:
+        return self.fetch_history(symbol, start, end)[0]
+
+    def fetch_history(
+        self, symbol: str, start: date, end: date
+    ) -> tuple[pd.DataFrame, dict[date, float]]:
+        """Daily bars plus stock splits in the same request ({day: ratio}, 2.0 = 2-for-1)."""
         from yfinance import exceptions as yfe
 
         sym = validate_symbol(symbol)
@@ -75,7 +94,7 @@ class YFinanceProvider:
                 end=(end + timedelta(days=1)).isoformat(),  # yfinance `end` is exclusive
                 interval="1d",
                 auto_adjust=False,
-                actions=False,
+                actions=True,  # adds Dividends / Stock Splits columns; bars ignore them
                 repair=False,
                 raise_errors=True,
                 timeout=20,
@@ -88,7 +107,7 @@ class YFinanceProvider:
                 f"yfinance: no data for {sym} (unknown symbol, or Yahoo unreachable)"
             ) from exc
         except yfe.YFPricesMissingError:
-            return normalize_history(pd.DataFrame())
+            return normalize_history(pd.DataFrame()), {}
         except Exception as exc:  # network, JSON, etc. Message is type-only: no URLs/cookies.
             raise ProviderError(f"yfinance: {type(exc).__name__}") from exc
-        return normalize_history(raw)
+        return normalize_history(raw), splits_from(raw)

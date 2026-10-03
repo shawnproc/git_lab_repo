@@ -90,11 +90,18 @@ describe('backup validation', () => {
   it('accepts a good backup', () => {
     expect(parseData(good).holdings.VTI).toBe(1000)
   })
+  it('reads share counts, and older backups without them', () => {
+    expect(parseData({ ...good, shares: { VTI: 2.5 } }).shares).toEqual({ VTI: 2.5 })
+    expect(parseData(good).shares).toEqual({})
+  })
   it.each([
     [{ ...good, version: 2 }],
     [{ ...good, holdings: { 'VT I': 1 } }],
     [{ ...good, holdings: { VTI: -1 } }],
     [{ ...good, holdings: { VTI: Infinity } }],
+    [{ ...good, shares: { VTI: -2 } }],
+    [{ ...good, shares: { '<b>': 1 } }],
+    [{ ...good, shares: [1, 2] }],
     [{ ...good, entries: [{ ...e('2026-09'), month: '2026-13' }] }],
     [{ ...good, entries: [{ ...e('2026-09'), amount: 0 }] }],
     [{ ...good, entries: [{ ...e('2026-09'), note: 'x'.repeat(121) }] }],

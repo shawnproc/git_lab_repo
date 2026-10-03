@@ -129,7 +129,8 @@ def test_prices_for_every_plan_ticker(clock: FakeClock, calendar: MarketCalendar
     prices = FakePriceProvider(calendar)
     snap = _snap(clock, FakeFred(calendar), FakeFundamentalsProvider(), prices=prices)
     p = snap["prices"]
-    assert set(p["quotes"]) == {t["symbol"] for t in snap["plan"]["targets"]}
+    assert {t["symbol"] for t in snap["plan"]["targets"]} <= set(p["quotes"])
+    assert set(p["quotes"]) == {"VTI", "VXUS", *AppConfig().plan.candidates}  # public list only
     assert p["stale"] is False and p["missing"] == [] and p["source"] == "fake_prices"
     q = p["quotes"]["VTI"]
     assert q["change_pct"] == pytest.approx((q["close"] / q["prev_close"] - 1) * 100, abs=1e-3)
@@ -182,3 +183,57 @@ def test_report_lists_each_part_and_ticker(clock: FakeClock, calendar: MarketCal
     assert "| Market mood | ✅ fresh |" in text
     assert "| Ticker prices | ⚠️ stale |" in text and "no price for KO" in text
     assert "| VTI |" in text
+
+
+@dataclass
+class GappyPrices(FakePriceProvider):
+    """VXUS skips one session (a halt), to prove gaps stay gaps."""
+
+    gap: date = date(2026, 9, 15)
+
+    def fetch_daily_bars(self, symbol: str, start: date, end: date) -> pd.DataFrame:
+        df = super().fetch_daily_bars(symbol, start, end)
+        return df.drop(index=[self.gap]) if symbol == "VXUS" else df
+
+
+def test_history_has_a_year_of_closes_and_never_fills_gaps(
+    clock: FakeClock, calendar: MarketCalendar
+) -> None:
+    prices = GappyPrices(calendar)
+    snap = _snap(clock, FakeFred(calendar), FakeFundamentalsProvider(), prices=prices)
+    h = snap["prices"]["history"]
+    assert h["days"][0] <= "2025-10-02" and h["days"][-1] == "2026-10-02"
+    assert h["days"] == sorted(h["days"])
+    for sym, closes in h["closes"].items():
+        assert len(closes) == len(h["days"]), sym
+    i = h["days"].index("2026-09-15")
+    assert h["closes"]["VXUS"][i] is None  # not interpolated
+    assert h["closes"]["VTI"][i] is not None
+    assert h["closes"]["VTI"][-1] == snap["prices"]["quotes"]["VTI"]["close"]
+    assert len(json.dumps(snap)) < 1_000_000  # small enough for a phone on cellular
+
+
+def test_a_non_plan_ticker_failing_does_not_mark_prices_stale(
+    clock: FakeClock, calendar: MarketCalendar
+) -> None:
+    prices = FlakyPrices(calendar, broken=("NKE",))  # on the company list, not picked
+    snap = _snap(clock, FakeFred(calendar), FakeFundamentalsProvider(), prices=prices)
+    assert snap["prices"]["stale"] is False
+    assert "NKE" in snap["prices"]["missing"] and "NKE" not in snap["prices"]["history"]["closes"]
+
+
+@dataclass
+class SplittingPrices(FakePriceProvider):
+    """Reports a 10-for-1 NVDA split, like YFinanceProvider.fetch_history."""
+
+    def fetch_history(
+        self, symbol: str, start: date, end: date
+    ) -> tuple[pd.DataFrame, dict[date, float]]:
+        bars = self.fetch_daily_bars(symbol, start, end)
+        return bars, ({date(2026, 6, 10): 10.0} if symbol == "NVDA" else {})
+
+
+def test_history_carries_splits_for_the_phone(clock: FakeClock, calendar: MarketCalendar) -> None:
+    snap = _snap(clock, FakeFred(calendar), FakeFundamentalsProvider(),
+                 prices=SplittingPrices(calendar))  # fmt: skip
+    assert snap["prices"]["history"]["splits"] == {"NVDA": [["2026-06-10", 10.0]]}

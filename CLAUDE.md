@@ -12,14 +12,16 @@ The full build plan and phase status are in `docs/PLAN.md`. Read it before start
   (no stock above 10%; targets always sum to 100%). Config is frozen at startup and no API writes
   it. Every config change is audited (`config_audit`). Don't add runtime setters for plan settings.
 - **Scope.** Long-term plan only: mood, plan, contribution, holdings/drift, charts, Learn. No swing
-  trading, backtests, auto-trading or broker connections.
+  trading, backtests, auto-trading or live broker connections. Importing a broker's exported file
+  on the phone (`phone/robinhood.ts`) is fine; a broker API needs the owner's go-ahead (keys).
 - **No paid services, no keys without asking.** Ask the owner before adding any dependency that
   needs an account, API key or payment.
 - **iPhone app (GitHub Pages):** `vite build --mode phone` + `tools/snapshot.py` in the daily
   workflow. The snapshot is PUBLIC: market mood, plan picks, Learn links, never personal data.
   Holdings and the wall live only in the phone's local storage (`frontend/src/phone/store.ts`,
   validated on load and restore). Phone math in `phone/logic.ts` mirrors the Python engine, and
-  the tests use the same numbers; change both together.
+  the tests use the same numbers; change both together. `phone/portfolio.ts` (shares x closes,
+  chart ranges) is phone-only and pure.
 - **Security first.** Bind 127.0.0.1. No CORS middleware (same-origin only). Every state-changing
   authenticated endpoint uses `CsrfPrincipalDep`. Use Pydantic models with `extra="forbid"` for
   every request body. ORM or parameterized SQL only. No `eval`/`exec`/`pickle` on fetched data.
