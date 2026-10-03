@@ -3,7 +3,7 @@ import { localMonth, type Learn, type MoodResult, type Plan as PlanData, type Sc
 import { KeystoneLogo, MoodArch, SpiritLevel } from '../components/brand'
 import { GrowingWall, WallStats } from '../components/GrowingWall'
 import { Card, Explain, PageHeader } from '../components/ui'
-import { fmtMoney, fmtMonth, fmtPct, fmtTimestamp } from '../format'
+import { fmtMoney, fmtMonth, fmtPct, fmtShares, fmtSignedPct, fmtTimestamp, gainClass } from '../format'
 import { LearnView } from '../pages/Learn'
 import { PlanView } from '../pages/Plan'
 import { type Theme, applyTheme, loadTheme } from '../theme'
@@ -21,11 +21,20 @@ interface Section {
   last_error: string
 }
 
+export interface Quote {
+  close: number
+  prev_close: number | null
+  change_pct: number | null
+  day: string
+}
+
 export interface Snapshot {
   schema: 1
   generated_at: string
   mood: Section & { result: MoodResult; index_day: string | null; vix_day: string | null }
   plan: Section & { targets: PlanTarget[]; screen: ScreenResult[] }
+  /** Optional: snapshots built before prices were added don't have it. */
+  prices?: Section & { quotes: Record<string, Quote>; missing: string[] }
   rules: { drift: DriftRules }
   learn: Learn
 }
@@ -49,6 +58,7 @@ function Stamp({ snap }: { snap: Snapshot }) {
   if (ageDays(snap.generated_at) > MAX_AGE_DAYS) problems.push(`Data was last updated ${fmtTimestamp(snap.generated_at)}.`)
   if (snap.mood.stale) problems.push(`Market mood: ${snap.mood.reason}`)
   if (snap.plan.stale) problems.push(`Company reports: ${snap.plan.reason}`)
+  if (snap.prices?.stale) problems.push(`Ticker prices: ${snap.prices.reason}`)
   if (problems.length === 0) return null
   return (
     <div role="alert" className="stamp mb-6 p-4">
@@ -88,12 +98,51 @@ function Today({ snap, data }: { snap: Snapshot; data: PhoneData }) {
           <p className="muted text-xs">Source: {snap.mood.source}, fetched {fmtTimestamp(snap.mood.fetched_at)}.</p>
         </Explain>
       </Card>
+      <Tickers snap={snap} />
       <Card title="This month">
         <p className="serif text-lg">{wall.message}</p>
         <a href="#/invest" className="btn mt-4 w-full">{wall.this_month_laid ? 'Add more this month' : 'Invest this month'} →</a>
         <div className="mt-5"><GrowingWall wall={wall} maxYears={2} /></div>
       </Card>
     </div>
+  )
+}
+
+function Tickers({ snap }: { snap: Snapshot }) {
+  const quotes = snap.prices?.quotes ?? {}
+  const days = [...new Set(Object.values(quotes).map((q) => q.day))].sort()
+  const last = days.at(-1)
+  return (
+    <Card title="Your plan’s tickers">
+      {snap.plan.targets.length === 0 ? <p className="muted text-sm">No plan yet.</p> : (
+        <ul className="divide-y divide-[var(--line)]">
+          {snap.plan.targets.map((t) => {
+            const q = quotes[t.symbol]
+            const up = (q?.change_pct ?? 0) > 0
+            const down = (q?.change_pct ?? 0) < 0
+            return (
+              <li key={t.symbol} className="flex items-center gap-3 py-2 text-sm">
+                <span className="w-14 font-mono font-bold">{t.symbol}</span>
+                <span className="muted min-w-0 flex-1 truncate text-xs">{t.name}</span>
+                {q ? (
+                  <>
+                    <span className="font-mono">{fmtMoney(q.close)}</span>
+                    <span className={`w-20 text-right font-mono ${gainClass(q.change_pct)}`}>
+                      <span aria-hidden>{up ? '▲ ' : down ? '▼ ' : ''}</span>{fmtSignedPct(q.change_pct)}
+                    </span>
+                  </>
+                ) : <span className="muted text-xs">no price today</span>}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <Explain>
+        <p><b>Last close</b> is the price when the market closed{last ? ` on ${fmtMonthDay(last)}` : ''}. The <b>%</b> is the change from the day before: ▲ up, ▼ down.</p>
+        <p>Prices wiggle every day. That’s normal and <b>not a reason to buy or sell</b>. Your plan works on months and years, not days.</p>
+        <p className="muted text-xs">Source: {snap.prices ? `${snap.prices.source}, fetched ${fmtTimestamp(snap.prices.fetched_at)}` : 'not available yet'}. Your own values come from your broker app.</p>
+      </Explain>
+    </Card>
   )
 }
 
@@ -244,16 +293,22 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
         {split && (
           <div className="mt-4">
             <ol className="slip space-y-3 px-4 pb-4">
-              {split.allocations.map((a, i) => (
-                <li key={a.symbol} className="flex items-end">
-                  <span className="serif text-lg"><span className="muted mr-2 font-mono text-sm">{String(i + 1).padStart(2, '0')}</span>Buy <b className="font-mono">{a.symbol}</b></span>
-                  <span className="leader" aria-hidden />
-                  <b className="font-mono text-lg">{fmtMoney(a.amount)}</b>
-                </li>
-              ))}
+              {split.allocations.map((a, i) => {
+                const q = snap.prices?.quotes[a.symbol]
+                return (
+                  <li key={a.symbol}>
+                    <div className="flex items-end">
+                      <span className="serif text-lg"><span className="muted mr-2 font-mono text-sm">{String(i + 1).padStart(2, '0')}</span>Buy <b className="font-mono">{a.symbol}</b></span>
+                      <span className="leader" aria-hidden />
+                      <b className="font-mono text-lg">{fmtMoney(a.amount)}</b>
+                    </div>
+                    {q && <div className="muted pl-8 text-xs">≈ {fmtShares(a.amount / q.close)} shares at the last close of {fmtMoney(q.close)}</div>}
+                  </li>
+                )
+              })}
             </ol>
             {!hasValues && <p className="muted mt-2 text-xs">No holdings values yet, so this follows your plan’s targets exactly.</p>}
-            <p className="muted mt-2 text-xs">In your broker app, choose to buy <b>in dollars</b> and type each amount.</p>
+            <p className="muted mt-2 text-xs">In your broker app, choose to buy <b>in dollars</b> and type each amount. Share counts are estimates: today’s price will be a little different.</p>
           </div>
         )}
         <Explain title="How is it split?">

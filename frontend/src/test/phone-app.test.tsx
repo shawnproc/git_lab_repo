@@ -14,6 +14,13 @@ const snapshot: Snapshot = {
     targets: plan.targets.map(({ symbol, name, kind, target_pct, why }) => ({ symbol, name, kind, target_pct, why })),
     screen: plan.screen, source: 'sec_edgar', fetched_at: new Date().toISOString(), stale: false, reason: '', last_error: '',
   },
+  prices: {
+    quotes: {
+      VTI: { close: 312.5, prev_close: 310, change_pct: 0.8065, day: '2026-10-02' },
+      VXUS: { close: 70, prev_close: 71, change_pct: -1.4085, day: '2026-10-02' },
+    },
+    missing: ['MSFT'], source: 'yfinance', fetched_at: new Date().toISOString(), stale: true, reason: 'no price for MSFT', last_error: 'MSFT: yfinance: no data',
+  },
   rules: { drift: { max_abs_pp: 5, max_relative_pct: 25 } },
   learn,
 }
@@ -61,6 +68,29 @@ describe('iPhone app', () => {
     expect(saved.holdings.VXUS).toBeGreaterThan(0)
     // Nothing personal was ever sent anywhere: the only request was the public snapshot.
     expect(fetchSpy.mock.calls.every((c) => String((c as unknown[])[0]).endsWith('snapshot.json'))).toBe(true)
+  })
+
+  it('Today lists each plan ticker with its last close, and never invents a missing one', async () => {
+    start('#/today')
+    expect(await screen.findByText('$312.50')).toBeInTheDocument()
+    expect(screen.getByText('+0.81%')).toBeInTheDocument()
+    expect(screen.getByText('−1.41%')).toBeInTheDocument()
+    expect(screen.getByText('no price today')).toBeInTheDocument() // MSFT
+    expect(screen.getByText(/Ticker prices: no price for MSFT/)).toBeInTheDocument()
+  })
+
+  it('works with an older snapshot that has no prices', async () => {
+    const { prices: _omit, ...old } = snapshot
+    start('#/today', old)
+    expect(await screen.findByText('Green')).toBeInTheDocument()
+    expect(screen.getAllByText('no price today')).toHaveLength(3)
+  })
+
+  it('split shows estimated shares at the last close', async () => {
+    start('#/invest')
+    fireEvent.click(await screen.findByRole('button', { name: 'Split it' }))
+    // No values yet, so the split follows the targets: VTI gets 45% of $500 = $225.
+    expect(screen.getByText('≈ 0.72 shares at the last close of $312.50')).toBeInTheDocument()
   })
 
   it('wall page works and offers backup', async () => {
