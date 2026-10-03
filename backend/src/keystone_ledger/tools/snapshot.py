@@ -164,18 +164,26 @@ def prices_section(
     """
     watch = symbols if watch is None else watch
     expected = cal.last_completed_session(now)
-    empty_history: dict[str, Any] = {"days": [], "closes": {}}
+    empty_history: dict[str, Any] = {"days": [], "closes": {}, "splits": {}}
     if prices is None:
         return {"quotes": {}, "history": empty_history, "missing": symbols, "source": "none",
                 "expected_day": expected.isoformat(), "fetched_at": None, "stale": True,
                 "reason": "prices are not set up", "last_error": ""}  # fmt: skip
     quotes: dict[str, dict[str, Any]] = {}
     series: dict[str, pd.Series] = {}
+    splits: dict[str, list[list[Any]]] = {}
     errors: dict[str, str] = {}
     start = _history_start(now)
+    # Providers that can report splits do it in the same request (the phone needs them to value
+    # shares bought before a split); others just give bars.
+    fetch_history = getattr(prices, "fetch_history", None)
     for sym in symbols:
         try:
-            bars, _ = validate_bars(prices.fetch_daily_bars(sym, start, now.date()))
+            if fetch_history is not None:
+                raw, split_map = fetch_history(sym, start, now.date())
+            else:
+                raw, split_map = prices.fetch_daily_bars(sym, start, now.date()), {}
+            bars, _ = validate_bars(raw)
         except (ProviderError, ValueError) as exc:
             errors[sym] = str(exc)
             continue
@@ -184,6 +192,8 @@ def prices_section(
             errors[sym] = "no recent prices"
             continue
         series[sym] = closes
+        if split_map:
+            splits[sym] = [[d.isoformat(), r] for d, r in sorted(split_map.items())]
         last = float(closes.iloc[-1])
         prev = float(closes.iloc[-2]) if len(closes) > 1 else None
         quotes[sym] = {
@@ -204,6 +214,7 @@ def prices_section(
             sym: [None if pd.isna(v) else round(float(v), 4) for v in c.reindex(days)]
             for sym, c in series.items()
         },
+        "splits": splits,
     }
     behind = sorted(s for s in watch if s in quotes and quotes[s]["day"] < expected.isoformat())
     missing = [s for s in symbols if s not in quotes]

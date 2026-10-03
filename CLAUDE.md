@@ -12,7 +12,8 @@ The full build plan and phase status are in `docs/PLAN.md`. Read it before start
   (no stock above 10%; targets always sum to 100%). Config is frozen at startup and no API writes
   it. Every config change is audited (`config_audit`). Don't add runtime setters for plan settings.
 - **Scope.** Long-term plan only: mood, plan, contribution, holdings/drift, charts, Learn. No swing
-  trading, backtests, auto-trading or broker connections.
+  trading, backtests, auto-trading or live broker connections. Importing a broker's exported file
+  on the phone (`phone/robinhood.ts`) is fine; a broker API needs the owner's go-ahead (keys).
 - **No paid services, no keys without asking.** Ask the owner before adding any dependency that
   needs an account, API key or payment.
 - **iPhone app (GitHub Pages):** `vite build --mode phone` + `tools/snapshot.py` in the daily

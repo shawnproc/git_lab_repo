@@ -220,3 +220,20 @@ def test_a_non_plan_ticker_failing_does_not_mark_prices_stale(
     snap = _snap(clock, FakeFred(calendar), FakeFundamentalsProvider(), prices=prices)
     assert snap["prices"]["stale"] is False
     assert "NKE" in snap["prices"]["missing"] and "NKE" not in snap["prices"]["history"]["closes"]
+
+
+@dataclass
+class SplittingPrices(FakePriceProvider):
+    """Reports a 10-for-1 NVDA split, like YFinanceProvider.fetch_history."""
+
+    def fetch_history(
+        self, symbol: str, start: date, end: date
+    ) -> tuple[pd.DataFrame, dict[date, float]]:
+        bars = self.fetch_daily_bars(symbol, start, end)
+        return bars, ({date(2026, 6, 10): 10.0} if symbol == "NVDA" else {})
+
+
+def test_history_carries_splits_for_the_phone(clock: FakeClock, calendar: MarketCalendar) -> None:
+    snap = _snap(clock, FakeFred(calendar), FakeFundamentalsProvider(),
+                 prices=SplittingPrices(calendar))  # fmt: skip
+    assert snap["prices"]["history"]["splits"] == {"NVDA": [["2026-06-10", 10.0]]}

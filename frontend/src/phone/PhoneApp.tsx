@@ -9,7 +9,8 @@ import { LearnView } from '../pages/Learn'
 import { PlanView } from '../pages/Plan'
 import { type Theme, applyTheme, loadTheme } from '../theme'
 import { buildWall, drift, type DriftRules, type PlanTarget, splitContribution } from './logic'
-import { change, chartable, type History, holdingValues, inRange, type Point, type Quote, RANGES, type Range, tickerSeries, valueSeries } from './portfolio'
+import { accountSeries, change, chartable, flowsBetween, type History, holdingValues, inRange, type Point, type Quote, RANGES, type Range, tickerSeries, valueSeries } from './portfolio'
+import { type ImportResult, parseRobinhood, type Trade } from './robinhood'
 import { askPersistent, backupBlob, load, newId, type PhoneData, readBackup, save } from './store'
 
 // ---------------------------------------------------------------------------------------------
@@ -39,6 +40,13 @@ const NO_HISTORY: History = { days: [], closes: {} }
 
 const quotesOf = (snap: Snapshot): Record<string, Quote> => snap.prices?.quotes ?? {}
 const historyOf = (snap: Snapshot): History => snap.prices?.history ?? NO_HISTORY
+const localDay = () => {
+  const d = new Date()
+  return `${String(d.getFullYear())}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const IMPORT_NOTE = 'Robinhood import'
+const tradedTotal = (trades: Trade[], sym: string) => Math.round(trades.filter((t) => t.symbol === sym).reduce((a, t) => a + t.qty, 0) * 1e6) / 1e6
+
 const valuesOf = (snap: Snapshot, data: PhoneData) => holdingValues(data.shares, data.holdings, quotesOf(snap))
 
 async function fetchSnapshot(): Promise<Snapshot> {
@@ -123,6 +131,8 @@ function RangeChart({ series, theme, eyebrow, label, defaultRange = '1Y' }: {
   const c = change(shown.value, base?.value ?? null)
   const up = (change(last.value, base?.value ?? null).amount ?? 0) >= 0
   const dir = (c.amount ?? 0) > 0 ? '▲' : (c.amount ?? 0) < 0 ? '▼' : ''
+  // With a trade history, split the change into money you added and what the market did.
+  const added = flowsBetween(points, base ?? null, shown)
   return (
     <div>
       <div className="eyebrow">{eyebrow}</div>
@@ -131,6 +141,12 @@ function RangeChart({ series, theme, eyebrow, label, defaultRange = '1Y' }: {
         <span aria-hidden>{dir} </span>{fmtSignedMoney(c.amount)} ({fmtSignedPct(c.pct)})
         <span className="muted ml-2 font-sans">{hover ? `since ${fmtDay(base?.day ?? last.day)}` : RANGE_WORDS[range]}</span>
       </div>
+      {added !== null && Math.abs(added) >= 0.01 && c.amount !== null && (
+        <div className="mt-0.5 text-xs">
+          <span className="muted">{added > 0 ? 'You added' : 'You took out'} {fmtMoney(Math.abs(added))} · the market moved </span>
+          <span className={`font-mono ${gainClass(c.amount - added)}`}>{fmtSignedMoney(Math.round((c.amount - added) * 100) / 100)}</span>
+        </div>
+      )}
       <div className="muted text-xs">{hover ? fmtDay(hover.day) : `As of the close on ${fmtMonthDay(last.day)}`}</div>
       <div className="mt-3">
         <ValueChart points={points} base={base?.value ?? null} up={up} theme={theme} onHover={setHover} label={label} />
@@ -147,8 +163,15 @@ function RangeChart({ series, theme, eyebrow, label, defaultRange = '1Y' }: {
 
 function YourMoney({ snap, data, theme }: { snap: Snapshot; data: PhoneData; theme: Theme }) {
   const history = historyOf(snap)
-  const syms = useMemo(() => chartable(data.shares, history), [data.shares, history])
-  const series = useMemo(() => valueSeries(data.shares, history, syms), [data.shares, history, syms])
+  const real = data.trades.length > 0
+  const { series, syms } = useMemo(() => {
+    if (real) {
+      const a = accountSeries(data.shares, data.trades, history)
+      return { series: a.points, syms: a.symbols }
+    }
+    const c = chartable(data.shares, history)
+    return { series: valueSeries(data.shares, history, c), syms: c }
+  }, [real, data.shares, data.trades, history])
   const values = valuesOf(snap, data)
   const outside = Object.keys(values).filter((s) => !syms.includes(s)).sort()
   const outsideTotal = outside.reduce((a, s) => a + (values[s] ?? 0), 0)
@@ -169,8 +192,14 @@ function YourMoney({ snap, data, theme }: { snap: Snapshot; data: PhoneData; the
         <p className="muted mt-3 text-xs">Not on the line: {outside.join(', ')} ({fmtMoney(outsideTotal)}, typed in dollars, so there’s no daily price). Everything together: <b>{fmtMoney((series.at(-1)?.value ?? 0) + outsideTotal)}</b>.</p>
       )}
       <Explain>
-        <p>The line shows what <b>the shares you own today</b> ({syms.join(', ')}) were worth at the end of each trading day.</p>
-        <p>It doesn’t know when you bought them, so it isn’t your account history (your broker app has that). It shows how your mix has moved.</p>
+        {real ? (
+          <p>This is <b>your real history</b>: the shares you actually held each day (from your Robinhood report, plus anything you’ve added here since), times that day’s closing price. Cash isn’t included.</p>
+        ) : (
+          <>
+            <p>The line shows what <b>the shares you own today</b> ({syms.join(', ')}) were worth at the end of each trading day.</p>
+            <p>It doesn’t know when you bought them, so it isn’t your account history. <a className="underline" href="#/invest">Import your Robinhood report</a> to see the real one.</p>
+          </>
+        )}
         <p><b>Drag your finger across the line</b> to see any day. The dotted line is where the period started. ▲ green means up, ▼ red means down.</p>
         <p>Prices are the official closing prices, updated every weekday evening, not live. For long-term investing that’s all you need, and it saves you from watching every wiggle.</p>
       </Explain>
@@ -231,6 +260,95 @@ function fmtMonthDay(day: string): string {
   return Number.isNaN(d.getTime()) ? day : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
+function RobinhoodImport({ snap, data, update }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void }) {
+  const [preview, setPreview] = useState<ImportResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
+  const [toWall, setToWall] = useState(true)
+  const quotes = quotesOf(snap)
+
+  async function read(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    setError(null); setDone(null); setPreview(null)
+    if (!file) return
+    try {
+      if (file.size > 5_000_000) throw new Error('That file is too big to be an activity report.')
+      setPreview(parseRobinhood(await file.text()))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Couldn’t read that file.')
+    }
+  }
+
+  function use() {
+    if (!preview) return
+    const imported = new Set([...preview.trades.map((t) => t.symbol)])
+    // Imported tickers take the report's share counts; a ticker you sold out of drops off.
+    const shares = { ...Object.fromEntries(Object.entries(data.shares).filter(([s]) => !imported.has(s))), ...preview.shares }
+    const holdings = Object.fromEntries(Object.entries(data.holdings).filter(([s]) => !(s in preview.shares)))
+    let entries = data.entries
+    let added = 0
+    if (toWall) {
+      // Replace stones from an earlier import; never double up a month you logged yourself.
+      entries = entries.filter((x) => x.note !== IMPORT_NOTE)
+      const mine = new Set(entries.map((x) => x.month))
+      for (const m of preview.months) {
+        if (mine.has(m.month) || m.amount <= 0) continue
+        entries = [...entries, { id: newId(), month: m.month, amount: m.amount, note: IMPORT_NOTE, created_at: new Date().toISOString() }]
+        added++
+      }
+    }
+    // A fresh full report replaces any earlier imported history.
+    update({ ...data, shares, holdings, trades: preview.trades, entries, values_as_of: new Date().toISOString() })
+    setDone(`✓ Imported ${String(Object.keys(preview.shares).length)} holdings${toWall ? ` and ${String(added)} months of stones` : ''}. Check the share counts against your Robinhood app.`)
+    setPreview(null)
+  }
+
+  return (
+    <Card title="Import from Robinhood">
+      <p className="text-sm">Fill in your <b>real shares and history</b> from Robinhood’s activity report. The file is read on this phone and never uploaded.</p>
+      <label className="btn mt-3 w-full cursor-pointer">Choose the report file
+        <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(e) => void read(e)} aria-label="Robinhood activity report file" />
+      </label>
+      {error && <p role="alert" className="mt-3 text-sm text-[var(--color-down)]">{error}</p>}
+      {done && <p role="status" className="mt-3 text-sm text-[var(--color-up)]">{done}</p>}
+      {preview && (
+        <div className="mt-4 space-y-3">
+          <p className="text-sm">Found {String(preview.counts.buys)} buys and {String(preview.counts.sells)} sells from {fmtDay(preview.first_day)} to {fmtDay(preview.last_day)}. You own:</p>
+          <ul className="divide-y divide-[var(--line)] text-sm">
+            {Object.entries(preview.shares).sort().map(([s, n]) => (
+              <li key={s} className="flex items-center gap-3 py-1">
+                <span className="w-16 font-mono font-bold">{s}</span>
+                <span className="flex-1 font-mono">{fmtShares(n)} shares</span>
+                <span className="muted font-mono text-xs">{quotes[s] ? `≈ ${fmtMoney(n * quotes[s].close)}` : 'no daily price'}</span>
+              </li>
+            ))}
+          </ul>
+          {preview.warnings.length > 0 && (
+            <ul className="stamp space-y-1 p-3 text-xs">{preview.warnings.map((w) => <li key={w}>⚠️ {w}</li>)}</ul>
+          )}
+          {preview.months.length > 0 && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={toWall} onChange={(e) => { setToWall(e.target.checked) }} />
+              Lay a stone for each of the {String(preview.months.length)} months you bought (skips months you already logged)
+            </label>
+          )}
+          <div className="flex gap-2">
+            <button type="button" className="btn flex-1" onClick={use}>Use these</button>
+            <button type="button" className="btn btn-ghost" onClick={() => { setPreview(null) }}>Cancel</button>
+          </div>
+        </div>
+      )}
+      <Explain title="How do I get the report?">
+        <p>In the Robinhood app: <b>Account</b> (person icon) → <b>Menu</b> → <b>Reports and statements</b> → <b>Reports</b> → <b>Generate new report</b>.</p>
+        <p>Pick your <b>investing account</b> and a start date <b>from when you opened it</b>, so every buy is included. Robinhood takes about 2 hours (up to a day) to build it, then it shows up in the same place.</p>
+        <p>Download it, then tap <b>Choose the report file</b> above and pick it from Files. Do it again whenever you like: a new report replaces the old one.</p>
+        <p className="muted text-xs">Crypto and options aren’t included. Robinhood’s report doesn’t list them as shares.</p>
+      </Explain>
+    </Card>
+  )
+}
+
 function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void }) {
   const targets = snap.plan.targets
   const quotes = quotesOf(snap)
@@ -276,7 +394,14 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
       if (n > 0) (priced(s) ? shares : dollars)[s] = n
     }
     setProblem(null)
-    update({ ...data, shares, holdings: dollars, values_as_of: new Date().toISOString() })
+    // With an imported history, a changed share count is recorded as an adjustment dated today,
+    // so the history keeps adding up to what you own.
+    const trades = [...data.trades]
+    for (const sym of new Set(trades.map((t) => t.symbol))) {
+      const diff = Math.round(((shares[sym] ?? 0) - tradedTotal(trades, sym)) * 1e6) / 1e6
+      if (Math.abs(diff) > 1e-6 && priced(sym)) trades.push({ day: localDay(), symbol: sym, qty: diff, source: 'adjust' })
+    }
+    update({ ...data, shares, trades, holdings: dollars, values_as_of: new Date().toISOString() })
     setSaved(true)
   }
 
@@ -308,11 +433,16 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
     const total = split.allocations.reduce((a, x) => a + x.amount, 0)
     const holdings = { ...data.holdings }
     const shares = { ...data.shares }
+    const trades = [...data.trades]
     if (addToHoldings) {
       for (const a of split.allocations) {
         const q = quotes[a.symbol]
         // Tickers with a price track shares (estimated at the last close); others track dollars.
-        if (q && holdings[a.symbol] === undefined) shares[a.symbol] = Math.round(((shares[a.symbol] ?? 0) + a.amount / q.close) * 1e6) / 1e6
+        if (q && holdings[a.symbol] === undefined) {
+          const qty = Math.round((a.amount / q.close) * 1e6) / 1e6
+          shares[a.symbol] = Math.round(((shares[a.symbol] ?? 0) + qty) * 1e6) / 1e6
+          if (trades.length > 0) trades.push({ day: localDay(), symbol: a.symbol, qty, source: 'stone' })
+        }
         else holdings[a.symbol] = Math.round(((holdings[a.symbol] ?? 0) + a.amount) * 100) / 100
       }
     }
@@ -320,6 +450,7 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
       ...data,
       holdings,
       shares,
+      trades,
       values_as_of: addToHoldings ? new Date().toISOString() : data.values_as_of,
       entries: [...data.entries, { id: newId(), month: localMonth(), amount: Math.round(total * 100) / 100, note: '', created_at: new Date().toISOString() }],
     })
@@ -336,6 +467,11 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
     <div className="space-y-5">
       <PageHeader title="Invest" intro="Three steps, about two minutes. Keep your broker app open alongside." />
       <Stamp snap={snap} />
+
+      <RobinhoodImport snap={snap} data={data} update={(d) => {
+        update(d)
+        setValues(Object.fromEntries([...new Set([...symbols, ...Object.keys(d.shares)])].map((s) => [s, (priced(s) ? d.shares[s] : d.holdings[s])?.toString() ?? ''])))
+      }} />
 
       <Card title="1 · What you own">
         <p className="muted mb-3 text-sm">

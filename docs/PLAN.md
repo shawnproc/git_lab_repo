@@ -24,7 +24,14 @@ data, educational only.
       to GitHub Pages. Each run writes a status table to the Actions run page.
       The snapshot carries about a year of daily closes for every ticker on the public company
       list, so Today shows "Your money" (your shares x each day's close, 1W to 1Y, with a finger
-      scrub) and each ticker opens its own chart. Gaps stay gaps; nothing is filled in. Holdings are typed in from the broker app; the
+      scrub) and each ticker opens its own chart. Gaps stay gaps; nothing is filled in.
+- [x] **Robinhood import (no API, no keys):** the phone reads Robinhood's account activity CSV
+      locally (`phone/robinhood.ts`). Buy/Sell/SPL/REC/ACATI change shares; cash codes are skipped;
+      unknown codes and options are reported, never guessed. Real history = shares held each day x
+      split-adjusted close, with each trade scaled by later splits (the snapshot carries split
+      ratios). The chart separates money added from market movement. Live broker APIs (SnapTrade,
+      Plaid) were considered and deferred: they need an account and keys, and the phone can't hold
+      a secret. Holdings are typed in from the broker app; the
       split is in dollars; holdings and the wall stay on the phone, with backup and restore.
       Charts stay in the PC app. If Yahoo blocks GitHub's servers, prices show "no price today"
       and the app still works from the typed-in values.

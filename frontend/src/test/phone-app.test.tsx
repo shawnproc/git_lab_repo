@@ -140,6 +140,40 @@ describe('iPhone app', () => {
     expect(screen.getByRole('button', { name: /MSFT/ })).toBeDisabled() // no price, no chart
   })
 
+  it('imports a Robinhood report: preview, then real shares, history and stones', async () => {
+    const csv = [
+      '"Activity Date","Process Date","Settle Date","Instrument","Description","Trans Code","Quantity","Price","Amount"',
+      '"10/1/2026","10/1/2026","10/2/2026","VXUS","Vanguard Total Intl","Buy","5","$71.00","($355.00)"',
+      '"9/30/2026","9/30/2026","10/1/2026","VTI","Vanguard Total Stock Market","Buy","2","$300.00","($600.00)"',
+      '"","","","","The data provided is for informational purposes only.","","","",""',
+    ].join('\n')
+    start('#/invest')
+    const input = await screen.findByLabelText('Robinhood activity report file')
+    fireEvent.change(input, { target: { files: [new File([csv], 'report.csv', { type: 'text/csv' })] } })
+    expect(await screen.findByText(/Found 2 buys and 0 sells/)).toBeInTheDocument()
+    expect(screen.getByText('≈ $625.00')).toBeInTheDocument() // 2 VTI x $312.50
+    fireEvent.click(screen.getByRole('button', { name: 'Use these' }))
+    expect(await screen.findByText(/Imported 2 holdings and 2 months of stones/)).toBeInTheDocument()
+    expect(screen.getByLabelText('VTI shares')).toHaveValue('2')
+    const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { shares: Record<string, number>; trades: unknown[]; entries: { note: string }[] }
+    expect(saved.shares).toEqual({ VTI: 2, VXUS: 5 })
+    expect(saved.trades).toHaveLength(2)
+    expect(saved.entries.map((e) => e.note)).toEqual(['Robinhood import', 'Robinhood import'])
+    // Today now shows the real history line: 0 before Sep 30, then 2 VTI, then 2 VTI + 5 VXUS.
+    fireEvent.click(screen.getByRole('link', { name: 'Today' }))
+    expect(await screen.findByText('$975.00')).toBeInTheDocument() // 2 x 312.50 + 5 x 70
+    expect(screen.getAllByText(/your real history/).length).toBeGreaterThan(0)
+    // Up $375 since Sep 30, but $355 of that is the VXUS you bought: the market did +$20.
+    expect(screen.getByText(/You added \$355\.00 · the market moved/)).toBeInTheDocument()
+    expect(screen.getByText('+$20.00')).toBeInTheDocument()
+  })
+
+  it('a file that is not a report gets a plain-English error', async () => {
+    start('#/invest')
+    fireEvent.change(await screen.findByLabelText('Robinhood activity report file'), { target: { files: [new File(['hello'], 'x.csv')] } })
+    expect(await screen.findByText(/doesn’t look like a Robinhood account activity report/)).toBeInTheDocument()
+  })
+
   it('wall page works and offers backup', async () => {
     start('#/wall')
     expect(await screen.findByText(/Your wall is empty/)).toBeInTheDocument()

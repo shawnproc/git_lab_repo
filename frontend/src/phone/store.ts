@@ -2,22 +2,27 @@
 // Stored in this app's private browser storage; the Backup button saves a copy you can keep in
 // iCloud Drive / Files. Every load (including restoring a backup) is strictly validated.
 import type { Entry } from './logic'
+import type { Trade } from './robinhood'
 
 const KEY = 'keystone.phone.v1'
 const SYMBOL = /^\^?[A-Z0-9]{1,10}([.-][A-Z0-9]{1,4})?$/
 const MONTH = /^(199\d|20\d\d)-(0[1-9]|1[0-2])$/
 const MAX_ENTRIES = 2000
 const MAX_HOLDINGS = 50
+const MAX_TRADES = 20_000
+const DAY = /^(199\d|20\d\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
+const SOURCES = new Set(['robinhood', 'adjust', 'stone'])
 
 export interface PhoneData {
   version: 1
   holdings: Record<string, number> // symbol -> dollar value you typed in (tickers with no price)
   shares: Record<string, number> // symbol -> shares you own (value = shares x last close)
+  trades: Trade[] // share changes from a Robinhood import (and later edits), for real history
   values_as_of: string | null // when you last updated those values
   entries: Entry[] // the wall
 }
 
-export const empty = (): PhoneData => ({ version: 1, holdings: {}, shares: {}, values_as_of: null, entries: [] })
+export const empty = (): PhoneData => ({ version: 1, holdings: {}, shares: {}, trades: [], values_as_of: null, entries: [] })
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -57,7 +62,18 @@ export function parseData(raw: unknown): PhoneData {
     }
     return { id, month, amount, note, created_at }
   })
-  return { version: 1, holdings, shares, values_as_of: asOf, entries }
+  if (raw.trades !== undefined && (!Array.isArray(raw.trades) || raw.trades.length > MAX_TRADES)) throw new Error('The backup’s trade history is damaged.')
+  const trades: Trade[] = (raw.trades ?? []).map((t: unknown) => {
+    if (!isObj(t)) throw new Error('The backup’s trade history is damaged.')
+    const { day, symbol, qty, source, split } = t
+    if (typeof day !== 'string' || !DAY.test(day) || typeof symbol !== 'string' || !SYMBOL.test(symbol)
+      || typeof qty !== 'number' || !Number.isFinite(qty) || Math.abs(qty) > 1e9
+      || typeof source !== 'string' || !SOURCES.has(source) || (split !== undefined && typeof split !== 'boolean')) {
+      throw new Error('The backup has a damaged trade.')
+    }
+    return { day, symbol, qty, source: source as Trade['source'], ...(split ? { split: true } : {}) }
+  })
+  return { version: 1, holdings, shares, trades, values_as_of: asOf, entries }
 }
 
 export function load(): PhoneData {
