@@ -297,10 +297,11 @@ def learn_section(verify: bool, client: httpx.Client | None = None) -> dict[str,
 
 
 def price_symbols(cfg: AppConfig, plan: dict[str, Any]) -> list[str]:
-    """The plan's tickers first, then the rest of the public company list (all from config, so
-    nothing personal), so a holding you add from that list gets a price and a chart too."""
+    """The plan's tickers, then the company list, then the broad extra list (all from config, so
+    nothing personal), so most holdings get a daily price and a chart."""
     syms = [t["symbol"] for t in plan["targets"]]
     syms += [f.symbol for f in cfg.plan.core_funds] + list(cfg.plan.candidates)
+    syms += list(cfg.data.extra_tickers)
     return list(dict.fromkeys(syms))
 
 

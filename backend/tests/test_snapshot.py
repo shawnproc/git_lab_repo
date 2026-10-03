@@ -130,7 +130,10 @@ def test_prices_for_every_plan_ticker(clock: FakeClock, calendar: MarketCalendar
     snap = _snap(clock, FakeFred(calendar), FakeFundamentalsProvider(), prices=prices)
     p = snap["prices"]
     assert {t["symbol"] for t in snap["plan"]["targets"]} <= set(p["quotes"])
-    assert set(p["quotes"]) == {"VTI", "VXUS", *AppConfig().plan.candidates}  # public list only
+    cfg = AppConfig()
+    public = {"VTI", "VXUS", *cfg.plan.candidates, *cfg.data.extra_tickers}
+    assert set(p["quotes"]) == public  # config lists only: nothing personal
+    assert len(public) > 100  # broad, so the list doesn't hint at anyone's holdings
     assert p["stale"] is False and p["missing"] == [] and p["source"] == "fake_prices"
     q = p["quotes"]["VTI"]
     assert q["change_pct"] == pytest.approx((q["close"] / q["prev_close"] - 1) * 100, abs=1e-3)

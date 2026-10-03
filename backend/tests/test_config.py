@@ -97,3 +97,13 @@ def test_config_changes_are_audited() -> None:
 def test_example_config_matches_defaults() -> None:
     example = Path(__file__).resolve().parents[2] / "config" / "keystone.example.toml"
     assert load_config(example) == AppConfig()
+
+
+def test_extra_tickers_are_validated() -> None:
+    from keystone_ledger.config import DataConfig
+
+    assert DataConfig(extra_tickers=("spy", "SPY", "brk.b")).extra_tickers == ("SPY", "BRK.B")
+    with pytest.raises(ValueError, match="invalid ticker"):
+        DataConfig(extra_tickers=("NOT A TICKER",))
+    with pytest.raises(ValueError, match="at most 200"):
+        DataConfig(extra_tickers=tuple(f"T{i}" for i in range(201)))
