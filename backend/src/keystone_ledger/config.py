@@ -48,6 +48,21 @@ DEFAULT_CANDIDATES: dict[str, str] = {
     "NEE": "Utilities",
 }  # fmt: skip
 
+# Popular funds and stocks the daily snapshot also prices, so most holdings get a daily price and
+# a chart. Deliberately broad: the snapshot is public, and a short list would reveal what you own.
+DEFAULT_EXTRA_TICKERS: tuple[str, ...] = (
+    # funds
+    "SPY", "VOO", "IVV", "QQQ", "QQQM", "VT", "ITOT", "SCHB", "SCHX", "SCHG", "SCHD",
+    "VUG", "VTV", "VIG", "VYM", "DGRO", "JEPI", "IXUS", "VEA", "VWO", "BND", "AGG", "VNQ", "IWM",
+    "DIA", "VGT", "XLK", "XLE", "XLF", "XLV", "SMH", "SOXX", "ARKK",
+    # stocks
+    "TSLA", "AMD", "INTC", "MU", "CSCO", "IBM", "NFLX", "DIS", "PYPL", "UBER", "ABNB", "SPOT",
+    "PLTR", "SHOP", "SNAP", "ROKU", "COIN", "HOOD", "SOFI", "JPM", "BAC", "WFC", "C", "BRK.B",
+    "F", "GM", "RIVN", "LCID", "NIO", "BA", "DAL", "AAL", "CCL", "T", "VZ", "PFE", "MRK", "ABBV",
+    "MRNA", "COP", "OXY", "O", "BABA", "GME", "AMC",
+)  # fmt: skip
+MAX_EXTRA_TICKERS = 200
+
 
 class _Frozen(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -182,6 +197,19 @@ class DataConfig(_Frozen):
     max_requests_per_second: float = Field(default=1.0, gt=0, le=10)
     sec_requests_per_second: float = Field(default=5.0, gt=0, le=9)  # SEC limit is 10/s
     fundamentals_max_age_days: int = Field(default=30, ge=1, le=365)
+    # Extra tickers to price daily for the phone (public). See DEFAULT_EXTRA_TICKERS.
+    extra_tickers: tuple[str, ...] = DEFAULT_EXTRA_TICKERS
+
+    @field_validator("extra_tickers")
+    @classmethod
+    def _extra(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        out = tuple(dict.fromkeys(s.strip().upper() for s in v))
+        if len(out) > MAX_EXTRA_TICKERS:
+            raise ValueError(f"at most {MAX_EXTRA_TICKERS} extra tickers")
+        bad = [s for s in out if not _SYMBOL.fullmatch(s)]
+        if bad:
+            raise ValueError(f"invalid ticker(s): {bad[:5]}")
+        return out
 
 
 class AppConfig(_Frozen):

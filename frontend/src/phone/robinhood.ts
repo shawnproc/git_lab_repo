@@ -30,6 +30,9 @@ const HEADERS = ['Activity Date', 'Instrument', 'Description', 'Trans Code', 'Qu
 
 // Codes that move cash only (no shares): deposits, dividends, interest, fees, lending income...
 const CASH_ONLY = new Set(['ACH', 'CDIV', 'MDIV', 'GOLD', 'SLIP', 'INT', 'MINT', 'DFEE', 'AFEE', 'GDBP', 'DTAX', 'FUTSWP', 'RTP', 'XENT', 'WITH', 'DEP', 'MISC', 'GMPC', 'T/A', 'DCF'])
+// Corporate actions that move shares: splits (SPL), reverse splits (SPR), mergers (MRGS), symbol or
+// CUSIP changes (CONV, SXCH), shares received (REC) and transfers in from another broker (ACATI).
+const CORPORATE = new Set(['SPL', 'SPR', 'MRGS', 'CONV', 'SXCH', 'REC', 'ACATI'])
 const OPTIONS = new Set(['BTO', 'STO', 'BTC', 'STC', 'OEXP', 'OASGN', 'OEXCS', 'OCA'])
 
 /** RFC 4180 CSV: quoted fields, "" escapes, newlines inside quotes, CRLF or LF. */
@@ -99,7 +102,9 @@ export function parseRobinhood(text: string): ImportResult {
   const col = (name: string) => head.indexOf(name)
   const at = { day: col('Activity Date'), sym: col('Instrument'), desc: col('Description'), code: col('Trans Code'), qty: col('Quantity'), amt: col('Amount') }
 
-  const byKey = new Map<string, Trade>() // one entry per day + symbol + kind
+  // Pass 1: read rows into share events. Pass 2 (below) applies them in date order.
+  interface Event { day: string; sym: string; qty: number; split: boolean; removeAll: boolean }
+  const events: Event[] = []
   const months = new Map<string, number>()
   const unknown = new Map<string, number>()
   const bad: string[] = []
@@ -112,41 +117,49 @@ export function parseRobinhood(text: string): ImportResult {
     counts.rows++
     const code = (r[at.code] ?? '').trim().toUpperCase()
     const sym = (r[at.sym] ?? '').trim().toUpperCase()
-    const qty = parseQty(r[at.qty] ?? '')
+    const rawQty = (r[at.qty] ?? '').trim()
+    const qty = parseQty(rawQty)
     if (CASH_ONLY.has(code) || code === '') { counts.ignored++; continue }
     if (OPTIONS.has(code)) { options++; counts.ignored++; continue }
     if (qty === null || !SYMBOL.test(sym)) { bad.push(`${day} ${code} ${sym.slice(0, 10)}`); continue }
-    let sign: number
-    if (code === 'BUY' || code === 'SPL' || code === 'REC' || code === 'ACATI') sign = 1
-    else if (code === 'SELL') sign = -1
-    else {
-      if (qty !== 0) unknown.set(code, (unknown.get(code) ?? 0) + 1)
-      else counts.ignored++
-      continue
-    }
     if (qty === 0) { counts.ignored++; continue }
-    const split = code === 'SPL'
-    const key = `${day}|${sym}|${split ? 's' : 't'}`
-    const prev = byKey.get(key)
-    byKey.set(key, { day, symbol: sym, qty: round6((prev?.qty ?? 0) + sign * qty), source: 'robinhood', ...(split ? { split: true } : {}) })
-    if (code === 'BUY') {
-      counts.buys++
-      // New money only: reinvested dividends are buys, but not money you added.
-      const amt = parseMoney(r[at.amt] ?? '')
-      const reinvest = /dividend reinvestment/i.test(r[at.desc] ?? '')
-      if (amt !== null && !reinvest) months.set(day.slice(0, 7), (months.get(day.slice(0, 7)) ?? 0) + Math.abs(amt))
-    } else if (code === 'SELL') counts.sells++
+    // Corporate actions write shares going OUT with a trailing "S" ("1.021S") and shares coming
+    // IN without it: a merger is one "S" row for the old stock and one plain row for the new.
+    const out = /S$/i.test(rawQty)
+    if (code === 'BUY' || code === 'SELL') {
+      if (out) { bad.push(`${day} ${code} ${sym}`); continue }
+      events.push({ day, sym, qty: code === 'BUY' ? qty : -qty, split: false, removeAll: false })
+      if (code === 'BUY') {
+        counts.buys++
+        // New money only: reinvested dividends are buys, but not money you added.
+        const amt = parseMoney(r[at.amt] ?? '')
+        const reinvest = /dividend reinvestment/i.test(r[at.desc] ?? '')
+        if (amt !== null && !reinvest) months.set(day.slice(0, 7), (months.get(day.slice(0, 7)) ?? 0) + Math.abs(amt))
+      } else counts.sells++
+    } else if (CORPORATE.has(code)) {
+      events.push({ day, sym, qty: out ? -qty : qty, split: code === 'SPL', removeAll: out })
+    } else {
+      unknown.set(code, (unknown.get(code) ?? 0) + 1)
+    }
   }
 
-  const trades = [...byKey.values()].filter((t) => t.qty !== 0).sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.symbol < b.symbol ? -1 : 1))
-  const warnings: string[] = []
-  // Running totals: going below zero means the report starts after your first buy of that stock.
+  // Pass 2: apply in date order. Robinhood rounds corporate-action quantities (to 4 places, while
+  // shares are kept to 6), so an "S" row that removes all but a sliver removes the whole position.
+  events.sort((x, y) => (x.day < y.day ? -1 : x.day > y.day ? 1 : 0))
+  const byKey = new Map<string, Trade>() // one entry per day + symbol + kind
   const running: Record<string, number> = {}
   const short = new Set<string>()
-  for (const t of trades) {
-    running[t.symbol] = round6((running[t.symbol] ?? 0) + t.qty)
-    if ((running[t.symbol] ?? 0) < -1e-6) short.add(t.symbol)
+  for (const e of events) {
+    const held = running[e.sym] ?? 0
+    const qty = e.removeAll && Math.abs(held + e.qty) < 0.001 ? -held : e.qty
+    running[e.sym] = round6(held + qty)
+    if ((running[e.sym] ?? 0) < -1e-6) short.add(e.sym)
+    const key = `${e.day}|${e.sym}|${e.split ? 's' : 't'}`
+    const prev = byKey.get(key)
+    byKey.set(key, { day: e.day, symbol: e.sym, qty: round6((prev?.qty ?? 0) + qty), source: 'robinhood', ...(e.split ? { split: true } : {}) })
   }
+  const trades = [...byKey.values()].filter((t) => t.qty !== 0).sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.symbol < b.symbol ? -1 : 1))
+  const warnings: string[] = []
   if (short.size > 0) {
     warnings.push(`The report sells more ${[...short].join(', ')} than it buys, so it probably starts after you first bought. Make a new report starting from when you opened your account.`)
   }
