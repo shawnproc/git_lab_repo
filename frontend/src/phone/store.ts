@@ -3,6 +3,7 @@
 // iCloud Drive / Files. Every load (including restoring a backup) is strictly validated.
 import type { Entry } from './logic'
 import type { Trade } from './robinhood'
+import { CADENCES, type Schedule } from './schedule'
 
 const KEY = 'keystone.phone.v1'
 const SYMBOL = /^\^?[A-Z0-9]{1,10}([.-][A-Z0-9]{1,4})?$/
@@ -18,11 +19,12 @@ export interface PhoneData {
   holdings: Record<string, number> // symbol -> dollar value you typed in (tickers with no price)
   shares: Record<string, number> // symbol -> shares you own (value = shares x last close)
   trades: Trade[] // share changes from a Robinhood import (and later edits), for real history
+  schedule: Schedule | null // your buy days and amount (null until you set one)
   values_as_of: string | null // when you last updated those values
   entries: Entry[] // the wall
 }
 
-export const empty = (): PhoneData => ({ version: 1, holdings: {}, shares: {}, trades: [], values_as_of: null, entries: [] })
+export const empty = (): PhoneData => ({ version: 1, holdings: {}, shares: {}, trades: [], schedule: null, values_as_of: null, entries: [] })
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -73,7 +75,17 @@ export function parseData(raw: unknown): PhoneData {
     }
     return { day, symbol, qty, source: source as Trade['source'], ...(split ? { split: true } : {}) }
   })
-  return { version: 1, holdings, shares, trades, values_as_of: asOf, entries }
+  let schedule: Schedule | null = null
+  if (raw.schedule !== undefined && raw.schedule !== null) {
+    const sc = raw.schedule
+    if (!isObj(sc) || typeof sc.cadence !== 'string' || !(CADENCES as readonly string[]).includes(sc.cadence)
+      || typeof sc.amount !== 'number' || !Number.isFinite(sc.amount) || sc.amount <= 0 || sc.amount > 1e6
+      || typeof sc.anchor !== 'string' || !DAY.test(sc.anchor)) {
+      throw new Error('The backup’s buy schedule is damaged.')
+    }
+    schedule = { cadence: sc.cadence as Schedule['cadence'], amount: sc.amount, anchor: sc.anchor }
+  }
+  return { version: 1, holdings, shares, trades, schedule, values_as_of: asOf, entries }
 }
 
 export function load(): PhoneData {

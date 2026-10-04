@@ -133,8 +133,9 @@ export function PlanView({ data }: { data: PlanData }) {
           </p>
           {stockPct < 40 && stocks.length > 0 && (
             <p>
-              The core is a bit bigger than the usual 60% because fewer than 6 companies passed the tests. Their unused
-              share moved here instead of piling more money into any one company.
+              The core is a bit bigger than the usual 60% because only {stocks.length} {stocks.length === 1 ? 'company' : 'companies'} passed
+              the tests, and no single company gets more than 8%. The unused share moved here instead of piling more
+              money into any one company.
             </p>
           )}
         </Explain>

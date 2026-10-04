@@ -125,7 +125,7 @@ class PlanConfig(_Frozen):
     core_pct: Pct = 60.0
     stocks_pct: Pct = 40.0
     core_funds: tuple[CoreFund, ...] = DEFAULT_CORE
-    max_stocks: int = Field(default=6, ge=0, le=10)
+    max_stocks: int = Field(default=10, ge=0, le=10)
     max_per_sector: int = Field(default=2, ge=1, le=10)
     max_single_stock_pct: float = Field(default=8.0, gt=0, le=HARD_MAX_SINGLE_STOCK_PCT)
     candidates: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_CANDIDATES))

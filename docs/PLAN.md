@@ -25,6 +25,11 @@ data, educational only.
       The snapshot carries about a year of daily closes for every ticker on the public company
       list, so Today shows "Your money" (your shares x each day's close, 1W to 1Y, with a finger
       scrub) and each ticker opens its own chart. Gaps stay gaps; nothing is filled in.
+- [x] **Today's move (buy schedule):** the owner sets a cadence (weekly, every 2 weeks, twice a
+      month, monthly) and an amount, stored on the phone (`phone/schedule.ts`). On a buy day the
+      card shows the contribution split (most underweight first, never sells) with share
+      estimates; otherwise a countdown. Buy days come from the schedule, never from prices or
+      mood: steady buying beats timing. Tickers show "% below 1-yr high" as context only.
 - [x] **Robinhood import (no API, no keys):** the phone reads Robinhood's account activity CSV
       locally (`phone/robinhood.ts`). Buy/Sell/SPL/REC/ACATI change shares; cash codes are skipped;
       unknown codes and options are reported, never guessed. Real history = shares held each day x
@@ -40,7 +45,7 @@ data, educational only.
 | Feature | Rule |
 |---|---|
 | Market mood | 🟢 S&P 500 above its 200-day average **and** VIX < 20 · 🔴 below **and** VIX > 30 · 🟡 otherwise · "unknown" without 200 days of data or a VIX reading |
-| Plan | 60% core (VTI 45 / VXUS 15) + 40% split equally across up to 6 screened stocks, max 2 per sector, max 8% each (hard cap 10%). Unused stock weight goes to core. |
+| Plan | 60% core (VTI 45 / VXUS 15) + 40% split equally across up to 10 screened stocks (4% each), max 2 per sector, max 8% each (hard cap 10%). Unused stock weight goes to core. |
 | Screen (SEC EDGAR) | Revenue growth ≥ 5%/yr over 3 yrs · operating margin ≥ 12% · margin not down > 1 pt vs 2 yrs ago · free cash flow > 0 · long-term debt ≤ 3 years of operating profit. Qualify with no fails and ≤ 1 "unavailable"; rank by growth + margin. |
 | Contribution | New money goes to the most underweight holdings first, never sells. Fractional shares by default; whole-share mode floors each buy and spends the leftover one share at a time. |
 | Drift | Flag when > 5 points off target **or** > 25% off the holding's own target; anything not in the plan is "off-plan". |

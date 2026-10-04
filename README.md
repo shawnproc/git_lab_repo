@@ -3,7 +3,7 @@
 A personal long-term investing dashboard that runs on your own computer:
 
 - **Home:** today's market mood (🟢 🟡 🔴) and how your money is doing.
-- **My Plan:** what to own (a steady core of index funds plus up to 6 strong companies), how much
+- **My Plan:** what to own (a steady core of index funds plus up to 10 strong companies), how much
   of each, and why.
 - **My Money:** enter what you own, see whether you're on track, get a split for this month's
   money, and lay this month's stone on **your wall**. It grows by one stone for every month you
@@ -53,8 +53,15 @@ The file is read on your phone and never uploaded. You get your real shares, you
 history on the **Today** chart (with "you added $X · the market moved $Y"), and a stone on your wall
 for every month you bought.
 
-### Your monthly routine (about 2 minutes)
-**Invest** tab → type how many **shares** you own of each (from your broker app; only when they
+### Your buy-day routine (about 2 minutes)
+Open **Today**. The **Today's move** card shows whether today is a buy day (you set your schedule
+once: weekly, every 2 weeks, twice a month or monthly, and the dollars each time). On a buy day it
+lists exactly what to buy, in dollars, across the funds and up to 10 companies. Buy those in your
+broker app, then tap **I bought these. Lay the stone**. On other days it shows the countdown to
+your next buy day: nothing to do. Each ticker also shows how far it is below its 1-year high, as
+context only (it never changes the amounts).
+
+Or, the long way: **Invest** tab → type how many **shares** you own of each (from your broker app; only when they
 change) → **Split it** → buy those dollar amounts in your broker app → **Lay the stone**. The
 **Today** tab then shows your money as a chart (1W to 1Y), priced at each weekday's close. Every few months: **Wall** tab → **Save a backup**
 → save it to Files or iCloud Drive.
