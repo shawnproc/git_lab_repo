@@ -49,6 +49,9 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss(), ...(phone ? [phoneHead()] : [])],
     // The phone app lives under https://<user>.github.io/<repo>/, so paths must be relative.
     base: phone ? './' : '/',
+    // When this copy of the app was built, shown in the phone footer so you can tell an update
+    // arrived.
+    define: { __APP_BUILT__: JSON.stringify(new Date().toISOString()) },
     publicDir: phone ? 'phone-public' : 'public',
     server: {
       host: '127.0.0.1',

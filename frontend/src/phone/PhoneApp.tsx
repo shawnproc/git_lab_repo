@@ -782,6 +782,7 @@ export default function PhoneApp() {
         )}
         <p className="muted mt-10 text-center text-xs">
           Educational tool, not financial advice. Your holdings and wall stay on this phone. {snap && `Data updated ${fmtTimestamp(snap.generated_at)}.`}
+          <br />App version {fmtTimestamp(__APP_BUILT__)}
         </p>
       </main>
       <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-10 border-t-2 border-[var(--ink)] bg-[var(--panel)]"
