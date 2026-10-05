@@ -124,8 +124,10 @@ def test_yfinance_reports_splits_from_the_same_request() -> None:
     frame["Stock Splits"] = [0.0, 10.0, 0.0]
     b.result = frame
     p = YFinanceProvider(NoWait(), ticker_factory=lambda s: FakeTicker(s, b))
-    bars, splits = p.fetch_history("NVDA", date(2026, 9, 30), date(2026, 10, 2))
+    frame["Dividends"] = [0.0, 0.0, 0.25]
+    bars, splits, divs = p.fetch_history("NVDA", date(2026, 9, 30), date(2026, 10, 2))
     assert splits == {date(2026, 10, 1): 10.0}
+    assert divs == {date(2026, 10, 2): 0.25}
     assert list(bars.columns) == ["open", "high", "low", "close", "adj_close", "volume"]
     assert b.kwargs["actions"] is True
 

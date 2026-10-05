@@ -76,6 +76,8 @@ margin_trend_tolerance_pp = 1.0    # margin may slip this much vs 2 years ago
 require_positive_fcf = true
 max_debt_to_operating_income = 3.0 # long-term debt / one year's operating profit
 max_unavailable = 1                 # checks allowed to be "unavailable"
+replace_after_failed_quarters = 2   # failed quarterly check-ins in a row before "replace" (1 = on watch)
+valuation_pe_multiple = 1.5         # price flag when P/E is above 1.5x its own 5-year median
 
 [drift]
 max_abs_pp = 5.0             # flag if more than 5 percentage points off target

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PhoneApp, { type Snapshot } from '../phone/PhoneApp'
 import { learn, plan } from './fixtures'
@@ -39,6 +39,8 @@ const snapshot: Snapshot = {
     },
     missing: ['MSFT'], source: 'yfinance', fetched_at: new Date().toISOString(), stale: true, reason: 'no price for MSFT', last_error: 'MSFT: yfinance: no data',
   },
+  // The prices' day has closed, and the next market day is far off, so the data counts as fresh.
+  sessions: [{ day: '2026-10-02', close: '2026-10-02T20:00:00+00:00' }, { day: '2099-01-02', close: '2099-01-02T21:00:00+00:00' }],
   rules: { drift: { max_abs_pp: 5, max_relative_pct: 25 } },
   learn,
 }
@@ -87,8 +89,9 @@ describe('iPhone app', () => {
     expect(saved.shares.VTI).toBe(3.2)
     expect(saved.shares.VXUS).toBeGreaterThan(0) // priced: tracked as (estimated) shares
     expect(saved.holdings.MSFT).toBeGreaterThan(0) // no price: tracked as dollars
-    // Nothing personal was ever sent anywhere: the only request was the public snapshot.
-    expect(fetchSpy.mock.calls.every((c) => String((c as unknown[])[0]).endsWith('snapshot.json'))).toBe(true)
+    // Nothing personal was ever sent anywhere: the only requests were the public data files.
+    expect(fetchSpy.mock.calls.every((c) => /\/(snapshot|status)\.json$/.test(String((c as unknown[])[0])))).toBe(true)
+    expect(fetchSpy.mock.calls.every((c) => (c as unknown[]).length < 2 || !('body' in ((c as unknown[])[1] as object)))).toBe(true)
   })
 
   it('Today lists each plan ticker with its last close, and never invents a missing one', async () => {
@@ -200,12 +203,119 @@ describe('iPhone app', () => {
     expect(await screen.findByText('25% below 1-yr high')).toBeInTheDocument()
   })
 
+  it('stale prices: a clear warning, and no buy amounts', async () => {
+    localStorage.setItem('keystone.phone.v1', JSON.stringify({ version: 1, holdings: {}, shares: {}, schedule: { cadence: 'semimonthly', amount: 100, anchor: '2026-10-01' }, values_as_of: null, entries: [] }))
+    // Prices from Sep 28; two market days have closed since.
+    const prices = snapshot.prices
+    if (!prices) throw new Error('fixture has prices')
+    const old = Object.fromEntries(Object.entries(prices.quotes).map(([k, q]) => [k, { ...q, day: '2026-09-28' }]))
+    start('#/today', { ...snapshot, prices: { ...prices, quotes: old }, sessions: [
+      { day: '2026-09-28', close: '2026-09-28T20:00:00+00:00' },
+      { day: '2026-09-29', close: '2026-09-29T20:00:00+00:00' },
+      { day: '2026-09-30', close: '2026-09-30T20:00:00+00:00' },
+      { day: '2099-01-02', close: '2099-01-02T21:00:00+00:00' },
+    ] })
+    expect(await screen.findByText('These aren’t today’s prices.')).toBeInTheDocument()
+    expect(screen.getByText(/market days old/)).toBeInTheDocument()
+    expect(screen.getByText(/amounts for each holding are hidden/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /I bought these/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('$45.00')).not.toBeInTheDocument()
+    expect(screen.getByTestId('prices-as-of')).toHaveTextContent('Prices as of the close on Sep 28, 2026')
+  })
+
+  it('a failed update check is shown and blocks amounts, even with recent dates', async () => {
+    localStorage.setItem('keystone.phone.v1', JSON.stringify({ version: 1, holdings: {}, shares: {}, schedule: { cadence: 'semimonthly', amount: 100, anchor: '2026-10-01' }, values_as_of: null, entries: [] }))
+    const status = { schema: 1, ok: false, checked_at: '2026-10-05T23:00:00Z', published_generated_at: snapshot.generated_at, kept_previous: true, errors: ['VTI: price is missing or zero'] }
+    window.location.hash = '#/today'
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(new Response(JSON.stringify(url.endsWith('status.json') ? status : snapshot), { status: 200 }))))
+    render(<PhoneApp />)
+    expect(await screen.findByText(/failed its safety checks \(VTI: price is missing or zero\)/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /I bought these/ })).not.toBeInTheDocument()
+  })
+
+  it('price-flagged companies get no buy-day money, and the market mood never changes amounts', async () => {
+    localStorage.setItem('keystone.phone.v1', JSON.stringify({ version: 1, holdings: {}, shares: {}, schedule: { cadence: 'semimonthly', amount: 100, anchor: '2026-10-01' }, values_as_of: null, entries: [] }))
+    const flagged = { ...snapshot, plan: { ...snapshot.plan, targets: snapshot.plan.targets.map((t) => t.symbol === 'MSFT'
+      ? { ...t, weight: 1, trend: 'steady' as const, status: 'ok' as const, valuation: { pe: 60, median_pe: 30, years_used: [2021, 2022, 2023, 2024, 2025], eps_year: 2025, flagged: true, detail: 'It costs about $60 per $1 of yearly profit, well above its usual $30.' } }
+      : t) } }
+    for (const mood of ['green', 'red'] as const) {
+      const { unmount } = (() => {
+        start('#/today', { ...flagged, mood: { ...flagged.mood, result: { ...flagged.mood.result, mood } } })
+        return { unmount: () => { cleanup() } }
+      })()
+      expect(await screen.findByText('Buy day')).toBeInTheDocument()
+      const slip = screen.getByText('Buy day').parentElement as HTMLElement
+      expect(within(slip).queryByText('MSFT')).not.toBeInTheDocument()
+      expect(within(slip).getByText(/Skipped for now .*MSFT/)).toBeInTheDocument()
+      // Same split whatever the mood: VTI 45/60 and VXUS 15/60 of $100.
+      expect(within(slip).getByText('$75.00')).toBeInTheDocument()
+      expect(within(slip).getByText('$25.00')).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('Plan: switching to 80/20 moves money to the funds', async () => {
+    start('#/plan')
+    fireEvent.click(await screen.findByRole('radio', { name: '80/20' }))
+    const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { core_pct: number }
+    expect(saved.core_pct).toBe(80)
+    expect(screen.getByText(/80% index funds · 20% companies/)).toBeInTheDocument()
+  })
+
+  it('locked backup: restoring asks for the passphrase and an explicit replace', async () => {
+    const { encryptBackup } = await import('../phone/backup')
+    const { empty } = await import('../phone/store')
+    const file = await encryptBackup({ ...empty(), shares: { VTI: 3 } }, 'correct horse battery', new Date(), 100_000)
+    localStorage.setItem('keystone.phone.v1', JSON.stringify({ version: 1, holdings: {}, shares: { VXUS: 1 }, values_as_of: null, entries: [] }))
+    start('#/wall')
+    fireEvent.change(await screen.findByLabelText('Backup file to restore'), { target: { files: [new File([file], 'b.json')] } })
+    fireEvent.change(await screen.findByLabelText('Passphrase to open the backup'), { target: { value: 'wrong passphrase!' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Open backup' }))
+    expect(await screen.findByText(/Wrong passphrase/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Passphrase to open the backup'), { target: { value: 'correct horse battery' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Open backup' }))
+    expect(await screen.findByText(/Restoring replaces everything on this phone/)).toBeInTheDocument()
+    // Nothing changed yet: the phone still has its own data until you confirm.
+    expect((JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { shares: Record<string, number> }).shares).toEqual({ VXUS: 1 })
+    fireEvent.click(screen.getByRole('button', { name: 'Replace everything on this phone' }))
+    expect(await screen.findByText('✓ Backup restored.')).toBeInTheDocument()
+    expect((JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { shares: Record<string, number> }).shares).toEqual({ VTI: 3 })
+  })
+
+  it('Top 3: ranks qualifying companies and explains each', async () => {
+    const prices = snapshot.prices
+    if (!prices) throw new Error('fixture has prices')
+    const snap = { ...snapshot,
+      prices: { ...prices, quotes: { ...prices.quotes, MSFT: { close: 400, prev_close: 398, change_pct: 0.5, day: '2026-10-02', dividend_yield_pct: 0.8 } } },
+      plan: { ...snapshot.plan, targets: snapshot.plan.targets.map((t) => t.symbol === 'MSFT' ? { ...t, weight: 1.2, trend: 'improving' as const, status: 'ok' as const, affinity_reason: 'Its business got stronger since last quarter.' } : t) } }
+    start('#/today', snap)
+    expect(await screen.findByText('3 to put new money in')).toBeInTheDocument()
+    const card = screen.getByText('3 to put new money in').parentElement as HTMLElement
+    expect(within(card).getByText('Getting stronger')).toBeInTheDocument()
+    expect(within(card).getByText('Pays 0.8% a year in dividends')).toBeInTheDocument()
+    expect(within(card).getByText('Its business got stronger since last quarter.')).toBeInTheDocument()
+    expect(within(card).getByText(/Only 1 qualify right now/)).toBeInTheDocument()
+  })
+
+  it('Sleeve vs VTI: same dollars, same days, real closes', async () => {
+    const prices = snapshot.prices
+    if (!prices) throw new Error('fixture has prices')
+    const snap = { ...snapshot, prices: { ...prices, history: { days: ['2026-09-30', '2026-10-01', '2026-10-02'], closes: { VTI: [300, 300, 330], MSFT: [100, 100, 150] } } } }
+    localStorage.setItem('keystone.phone.v1', JSON.stringify({ version: 1, holdings: {}, shares: { MSFT: 2 }, values_as_of: null, entries: [],
+      trades: [{ day: '2026-09-30', symbol: 'MSFT', qty: 2, source: 'robinhood' }] }))
+    start('#/today', snap)
+    const card = (await screen.findByText('Your picks vs. just VTI')).parentElement as HTMLElement
+    expect(within(card).getByText('$300.00')).toBeInTheDocument() // 2 MSFT x $150
+    expect(within(card).getByText('$220.00')).toBeInTheDocument() // $200 into VTI at $300, now $330
+    expect(within(card).getByText(/Your picks are ahead by \$80\.00/)).toBeInTheDocument()
+  })
+
   it('wall page works and offers backup', async () => {
     start('#/wall')
     expect(await screen.findByText(/Your wall is empty/)).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Amount you invested in dollars'), { target: { value: '250' } })
     fireEvent.click(screen.getByRole('button', { name: 'Lay a stone' }))
     expect(await screen.findByText(/This month's stone is laid/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save a backup' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save locked backup' })).toBeInTheDocument()
   })
 })

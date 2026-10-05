@@ -11,6 +11,8 @@ const MONTH = /^(199\d|20\d\d)-(0[1-9]|1[0-2])$/
 const MAX_ENTRIES = 2000
 const MAX_HOLDINGS = 50
 const MAX_TRADES = 20_000
+/** Allowed funds/stocks splits (% in the index funds). The 10% per-company cap applies to all. */
+export const CORE_CHOICES = [60, 70, 80] as const
 const DAY = /^(199\d|20\d\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
 const SOURCES = new Set(['robinhood', 'adjust', 'stone'])
 
@@ -20,11 +22,13 @@ export interface PhoneData {
   shares: Record<string, number> // symbol -> shares you own (value = shares x last close)
   trades: Trade[] // share changes from a Robinhood import (and later edits), for real history
   schedule: Schedule | null // your buy days and amount (null until you set one)
+  core_pct: number | null // your funds/stocks split: 60, 70 or 80 (% in the index funds)
+  last_backup_at: string | null // when you last saved a backup file
   values_as_of: string | null // when you last updated those values
   entries: Entry[] // the wall
 }
 
-export const empty = (): PhoneData => ({ version: 1, holdings: {}, shares: {}, trades: [], schedule: null, values_as_of: null, entries: [] })
+export const empty = (): PhoneData => ({ version: 1, holdings: {}, shares: {}, trades: [], schedule: null, core_pct: null, last_backup_at: null, values_as_of: null, entries: [] })
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -85,7 +89,11 @@ export function parseData(raw: unknown): PhoneData {
     }
     schedule = { cadence: sc.cadence as Schedule['cadence'], amount: sc.amount, anchor: sc.anchor }
   }
-  return { version: 1, holdings, shares, trades, schedule, values_as_of: asOf, entries }
+  const corePct = raw.core_pct ?? null
+  if (corePct !== null && !(CORE_CHOICES as readonly unknown[]).includes(corePct)) throw new Error('The backup’s fund/stock split is damaged.')
+  const lastBackup = raw.last_backup_at ?? null
+  if (lastBackup !== null && (typeof lastBackup !== 'string' || Number.isNaN(Date.parse(lastBackup)))) throw new Error('The backup’s date is damaged.')
+  return { version: 1, holdings, shares, trades, schedule, core_pct: corePct as number | null, last_backup_at: lastBackup, values_as_of: asOf, entries }
 }
 
 export function load(): PhoneData {

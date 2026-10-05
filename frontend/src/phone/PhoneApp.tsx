@@ -1,5 +1,5 @@
 import { type ChangeEvent, type SubmitEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { localMonth, type Learn, type MoodResult, type Plan as PlanData, type ScreenResult } from '../api'
+import { localMonth, type Plan as PlanData } from '../api'
 import { KeystoneLogo, MoodArch, SpiritLevel } from '../components/brand'
 import { GrowingWall, WallStats } from '../components/GrowingWall'
 import { Card, Explain, PageHeader } from '../components/ui'
@@ -8,33 +8,19 @@ import { ValueChart } from '../components/ValueChart'
 import { LearnView } from '../pages/Learn'
 import { PlanView } from '../pages/Plan'
 import { type Theme, applyTheme, loadTheme } from '../theme'
-import { buildWall, drift, type DriftRules, type PlanTarget, splitContribution } from './logic'
+import { buildWall, drift, splitContribution } from './logic'
 import { accountSeries, belowHigh, change, chartable, flowsBetween, type History, holdingValues, inRange, type Point, type Quote, RANGES, type Range, tickerSeries, valueSeries } from './portfolio'
 import { type ImportResult, parseRobinhood, type Trade } from './robinhood'
 import { buyStatus, CADENCE_WORDS, CADENCES, type Cadence, defaultSchedule, type Schedule } from './schedule'
-import { askPersistent, backupBlob, load, newId, type PhoneData, readBackup, save } from './store'
+import { BackupCard, BackupReminder, CompanyStatus, FreshnessBar, OverlapCard, SleeveCard, SplitSetting, TopThree } from './Insights'
+import { freshnessOf, type Snapshot, skipFor, targetsFor } from './model'
+import type { Freshness, RefreshStatus } from './stale'
+import { askPersistent, load, newId, type PhoneData, save } from './store'
 
 // ---------------------------------------------------------------------------------------------
 // Snapshot: public market data, rebuilt every weekday by GitHub Actions.
 
-interface Section {
-  source: string
-  fetched_at: string | null
-  stale: boolean
-  reason: string
-  last_error: string
-}
-
-export interface Snapshot {
-  schema: 1
-  generated_at: string
-  mood: Section & { result: MoodResult; index_day: string | null; vix_day: string | null }
-  plan: Section & { targets: PlanTarget[]; screen: ScreenResult[] }
-  /** Optional: snapshots built before prices were added don't have it. */
-  prices?: Section & { quotes: Record<string, Quote>; history?: History; missing: string[] }
-  rules: { drift: DriftRules }
-  learn: Learn
-}
+export type { Snapshot } from './model'
 
 const MAX_AGE_DAYS = 4 // a long weekend plus a missed run
 const NO_HISTORY: History = { days: [], closes: {} }
@@ -91,6 +77,14 @@ async function fetchSnapshot(): Promise<Snapshot> {
   return data as Snapshot
 }
 
+/** The daily job's own report of whether today's update passed its checks (optional). */
+async function fetchStatus(): Promise<RefreshStatus | null> {
+  const res = await fetch('./status.json', { cache: 'no-cache', credentials: 'omit', redirect: 'error' })
+  if (!res.ok) return null
+  const s = (await res.json()) as Partial<RefreshStatus>
+  return typeof s.ok === 'boolean' && Array.isArray(s.errors) ? (s as RefreshStatus) : null
+}
+
 function ageDays(iso: string): number {
   return (Date.now() - Date.parse(iso)) / 86_400_000
 }
@@ -119,14 +113,19 @@ function Stamp({ snap }: { snap: Snapshot }) {
 
 const MOOD_LABEL = { green: 'Green', yellow: 'Yellow', red: 'Red', unknown: 'Not enough data yet' } as const
 
-function Today({ snap, data, theme, update }: { snap: Snapshot; data: PhoneData; theme: Theme; update: (d: PhoneData) => void }) {
+function Today({ snap, data, theme, update, fresh, now }: { snap: Snapshot; data: PhoneData; theme: Theme; update: (d: PhoneData) => void; fresh: Freshness; now: Date }) {
   const wall = buildWall(data.entries, localMonth())
   const m = snap.mood.result
+  const targets = targetsFor(snap, data)
   return (
     <div className="space-y-5">
+      <FreshnessBar snap={snap} fresh={fresh} />
       <Stamp snap={snap} />
-      <TodaysMove snap={snap} data={data} update={update} />
+      <BackupReminder data={data} now={now} />
+      <TodaysMove snap={snap} data={data} update={update} fresh={fresh} />
+      <TopThree snap={snap} data={data} targets={targets} fresh={fresh} />
       <YourMoney snap={snap} data={data} theme={theme} />
+      <SleeveCard snap={snap} data={data} />
       <Card>
         <MoodArch mood={m.mood} />
         <div className="eyebrow mt-4">Market mood</div>
@@ -137,7 +136,7 @@ function Today({ snap, data, theme, update }: { snap: Snapshot; data: PhoneData;
           <p>A <b>weather report</b> for the stock market, not a buy or sell signal.</p>
           <p><b>Direction:</b> is the S&amp;P 500 (the 500 biggest US companies) above its average of the last ~10 months? Above means it’s been rising.</p>
           <p><b>Nerves:</b> the VIX “fear gauge”. Under 20 is calm, 20–30 nervous, over 30 scared.</p>
-          <p><b>For long-term investing the move is usually the same in every color: keep adding money each month.</b></p>
+          <p><b>For long-term investing the move is the same in every color: keep adding money on schedule.</b> The mood never changes your buy days or amounts; it’s here only so you know what you’re seeing in the news.</p>
           <p className="muted text-xs">Source: {snap.mood.source}, fetched {fmtTimestamp(snap.mood.fetched_at)}.</p>
         </Explain>
       </Card>
@@ -196,7 +195,7 @@ function RangeChart({ series, theme, eyebrow, label, defaultRange = '1Y' }: {
   )
 }
 
-function TodaysMove({ snap, data, update }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void }) {
+function TodaysMove({ snap, data, update, fresh }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void; fresh: Freshness }) {
   const today = localDay()
   const schedule = data.schedule ?? defaultSchedule(today)
   const [editing, setEditing] = useState(data.schedule === null)
@@ -208,7 +207,10 @@ function TodaysMove({ snap, data, update }: { snap: Snapshot; data: PhoneData; u
   const quotes = quotesOf(snap)
   const held = valuesOf(snap, data)
   const status = buyStatus(today, schedule, buyDays(data))
-  const split = splitContribution(schedule.amount, snap.plan.targets, held)
+  // Mood is never an input here: buy days come from your schedule, amounts from your targets.
+  const targets = targetsFor(snap, data)
+  const skip = skipFor(targets)
+  const split = splitContribution(schedule.amount, targets, held, skip)
 
   function saveSchedule(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -256,6 +258,9 @@ function TodaysMove({ snap, data, update }: { snap: Snapshot; data: PhoneData; u
         <div className="mt-1">
           <div className="serif text-4xl font-bold">Buy day</div>
           <p className="mt-1 text-sm">Put in <b className="font-mono">{fmtMoney(schedule.amount)}</b> today. {CADENCE_WORDS[schedule.cadence]}; this one has been due since {fmtMonthDay(status.since)}.</p>
+          {fresh.stale ? (
+            <p role="alert" className="mt-3 border-l-4 border-[var(--color-warn)] p-3 text-sm">The amounts for each holding are hidden because the prices are out of date. Check back after the next update (weekday evenings), or buy your usual funds at your broker if you can’t wait.</p>
+          ) : (<>
           <ol className="slip mt-3 space-y-2 px-4 pb-3">
             {split.allocations.map((a) => {
               const q = quotes[a.symbol]
@@ -268,8 +273,9 @@ function TodaysMove({ snap, data, update }: { snap: Snapshot; data: PhoneData; u
               )
             })}
           </ol>
-          <p className="muted mt-2 text-xs">In your broker app, buy each one <b>in dollars</b>. Money goes to whatever is furthest below its target, so you never have to sell.</p>
+          <p className="muted mt-2 text-xs">In your broker app, buy each one <b>in dollars</b>. Money goes to whatever is furthest below its target, so you never have to sell.{skip.size > 0 && ` Skipped for now (price well above its usual level): ${[...skip].join(', ')}.`}</p>
           <button type="button" className="btn mt-3 w-full" onClick={bought}>I bought these. Lay the stone</button>
+          </>)}
         </div>
       ) : (
         <div className="mt-1">
@@ -483,8 +489,8 @@ function RobinhoodImport({ snap, data, update }: { snap: Snapshot; data: PhoneDa
   )
 }
 
-function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void }) {
-  const targets = snap.plan.targets
+function Invest({ snap, data, update, fresh }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void; fresh: Freshness }) {
+  const targets = targetsFor(snap, data)
   const quotes = quotesOf(snap)
   const held = valuesOf(snap, data)
   const priced = (s: string) => s in quotes
@@ -557,9 +563,13 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
       setProblem('Type the amount you’re adding, like 500.')
       return
     }
+    if (fresh.stale) {
+      setProblem('Prices are out of date, so the split is paused until the next update. ' + fresh.reason)
+      return
+    }
     setProblem(null)
     setLaid(false)
-    setSplit(splitContribution(n, targets, held))
+    setSplit(splitContribution(n, targets, held, skipFor(targets)))
   }
 
   function layStone() {
@@ -708,11 +718,12 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
   )
 }
 
-function PlanPage({ snap, data }: { snap: Snapshot; data: PhoneData }) {
+function PlanPage({ snap, data, update }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void }) {
   const total = Object.values(valuesOf(snap, data)).reduce((a, v) => a + v, 0)
   const basis = total > 0 ? total : 10_000
+  const targets = targetsFor(snap, data)
   const plan: PlanData = {
-    targets: snap.plan.targets.map((t) => ({ ...t, target_value: Math.round((t.target_pct / 100) * basis * 100) / 100 })),
+    targets: targets.map((t) => ({ ...t, target_value: Math.round((t.target_pct / 100) * basis * 100) / 100 })),
     screen: snap.plan.screen,
     fundamentals: { source: snap.plan.source, fetched_at: snap.plan.fetched_at, stale: snap.plan.stale, reason: snap.plan.reason, last_error: snap.plan.last_error },
     basis_value: basis,
@@ -722,6 +733,11 @@ function PlanPage({ snap, data }: { snap: Snapshot; data: PhoneData }) {
     <div>
       <PageHeader title="My Plan" intro="What to own and why. Updated from companies’ official reports." />
       <Stamp snap={snap} />
+      <div className="mb-5 space-y-5">
+        <SplitSetting snap={snap} data={data} update={update} />
+        <CompanyStatus snap={snap} targets={targets} />
+        <OverlapCard snap={snap} targets={targets} />
+      </div>
       <PlanView data={plan} />
     </div>
   )
@@ -747,42 +763,6 @@ function WallPage({ data, update }: { data: PhoneData; update: (d: PhoneData) =>
     update({ ...data, entries: [...data.entries, { id: newId(), month, amount: Math.round(n * 100) / 100, note: '', created_at: new Date().toISOString() }] })
     setAmount('')
     setMsg('✓ Stone laid.')
-  }
-
-  async function restore(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    try {
-      const d = await readBackup(file)
-      if (!confirm(`Replace what’s on this phone with the backup (${String(d.entries.length)} stones, ${String(Object.keys(d.holdings).length)} holdings)?`)) return
-      update(d)
-      setMsg('✓ Backup restored.')
-    } catch (err) {
-      setMsg(err instanceof Error ? err.message : 'Couldn’t read that file.')
-    }
-  }
-
-  async function backup() {
-    const blob = backupBlob(data)
-    const name = `keystone-backup-${new Date().toISOString().slice(0, 10)}.json`
-    const file = new File([blob], name, { type: 'application/json' })
-    try {
-      if ('canShare' in navigator && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Keystone Ledger backup' })
-        setMsg('✓ Backup shared. Save it to Files or iCloud Drive.')
-        return
-      }
-    } catch {
-      // share cancelled: fall through to a download
-    }
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = name
-    a.click()
-    URL.revokeObjectURL(url)
-    setMsg('✓ Backup file saved.')
   }
 
   const recent = [...data.entries].sort((a, b) => (a.month < b.month ? 1 : -1)).slice(0, 24)
@@ -816,15 +796,7 @@ function WallPage({ data, update }: { data: PhoneData; update: (d: PhoneData) =>
           </details>
         )}
       </Card>
-      <Card title="Back up your wall">
-        <p className="text-sm">Your holdings and stones live <b>only on this phone</b>. Save a backup now and then, so a lost or new phone doesn’t mean starting over.</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button className="btn" onClick={() => void backup()}>Save a backup</button>
-          <label className="btn btn-ghost cursor-pointer">Restore a backup
-            <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => void restore(e)} />
-          </label>
-        </div>
-      </Card>
+      <BackupCard data={data} update={update} />
       {msg && <p role="status" className="text-sm">{msg}</p>}
     </div>
   )
@@ -855,6 +827,8 @@ export default function PhoneApp() {
   const [snap, setSnap] = useState<Snapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<PhoneData>(load)
+  const [status, setStatus] = useState<RefreshStatus | null>(null)
+  const [now] = useState(() => new Date())
 
   useEffect(() => { applyTheme(theme) }, [theme])
   useEffect(() => {
@@ -864,6 +838,7 @@ export default function PhoneApp() {
   }, [])
   useEffect(() => {
     fetchSnapshot().then(setSnap, (e: unknown) => { setError(e instanceof Error ? e.message : 'Couldn’t load today’s data.') })
+    fetchStatus().then(setStatus, () => { setStatus(null) })
     void askPersistent()
   }, [])
 
@@ -886,9 +861,9 @@ export default function PhoneApp() {
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-32 pt-6">
         {error && <p role="alert" className="mb-4 border-l-4 border-[var(--color-down)] p-3 text-sm">{error}</p>}
         {!snap && !error && <p className="muted">Loading today’s data…</p>}
-        {snap && tab === 'today' && <Today snap={snap} data={data} theme={theme} update={update} />}
-        {snap && tab === 'invest' && <Invest snap={snap} data={data} update={update} />}
-        {snap && tab === 'plan' && <PlanPage snap={snap} data={data} />}
+        {snap && tab === 'today' && <Today snap={snap} data={data} theme={theme} update={update} fresh={freshnessOf(snap, status, now)} now={now} />}
+        {snap && tab === 'invest' && <Invest snap={snap} data={data} update={update} fresh={freshnessOf(snap, status, now)} />}
+        {snap && tab === 'plan' && <PlanPage snap={snap} data={data} update={update} />}
         {tab === 'wall' && <WallPage data={data} update={update} />}
         {snap && tab === 'learn' && (
           <div><PageHeader title="Learn" intro="Every word the app uses, in plain English." /><LearnView data={snap.learn} /></div>

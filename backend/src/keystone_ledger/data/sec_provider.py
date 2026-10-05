@@ -24,7 +24,9 @@ from keystone_ledger.data.base import ProviderError, RateLimitedError
 from keystone_ledger.data.ratelimit import MinIntervalLimiter
 
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
-FRAMES_URL = "https://data.sec.gov/api/xbrl/frames/us-gaap/{tag}/USD/{period}.json"
+FRAMES_URL = "https://data.sec.gov/api/xbrl/frames/us-gaap/{tag}/{unit}/{period}.json"
+# Dollar amounts, and per-share amounts like earnings per share.
+UNITS = frozenset({"USD", "USD-per-shares"})
 _MAX_BYTES = 40_000_000
 _TAG_OK = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
@@ -117,10 +119,12 @@ class SecEdgarProvider:
     def fetch_tickers(self) -> dict[str, TickerInfo]:
         return parse_tickers(self._get_json(TICKERS_URL))
 
-    def fetch_frame(self, tag: str, period: str) -> dict[int, FrameValue]:
+    def fetch_frame(self, tag: str, period: str, unit: str = "USD") -> dict[int, FrameValue]:
+        if unit not in UNITS:
+            raise ValueError(f"invalid unit {unit!r}")
         if not tag or not set(tag) <= _TAG_OK or len(tag) > 128:
             raise ValueError(f"invalid XBRL tag {tag!r}")
         if not (len(period) in (6, 9) and period.startswith("CY") and period[2:6].isdigit()):
             raise ValueError(f"invalid frame period {period!r}")
-        payload = self._get_json(FRAMES_URL.format(tag=tag, period=period))
+        payload = self._get_json(FRAMES_URL.format(tag=tag, unit=unit, period=period))
         return {} if payload is None else parse_frame(payload)

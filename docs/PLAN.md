@@ -30,6 +30,22 @@ data, educational only.
       card shows the contribution split (most underweight first, never sells) with share
       estimates; otherwise a countdown. Buy days come from the schedule, never from prices or
       mood: steady buying beats timing. Tickers show "% below 1-yr high" as context only.
+- [x] **Sleeve vs. index:** the stock sleeve's real result vs a shadow that put the same dollars
+      into VTI on the same days (`phone/sleeve.ts`); funds/stocks split 60/40, 70/30 or 80/20 as a
+      phone setting (`targetsFor`, mirror of `build_targets` with affinity weights and the cap).
+      Overlap: VTI's published top holdings give each company's combined weight.
+- [x] **No churn, with a price check:** quarterly check-ins recorded in the snapshot
+      (`core/watch.py`): 1 failure = on watch, 2 in a row = replace (new money stops; never sells).
+      Last quarter's picks stay picked unless replaced. P/E vs its own 5-year median of year-end
+      P/Es (SEC diluted EPS + year-end closes, `core/valuation.py`); above 1.5x flags it and
+      buy-day money skips it. Affinity weights the sleeve by quality and quarterly trend.
+- [x] **Never stale as current:** the snapshot is validated before publishing
+      (`tools/validate_snapshot.py`); on failure the last good file stays and `status.json` says
+      why. The snapshot carries market sessions with close times; the phone counts market days
+      behind and hides buy amounts past one. Mood is display-only (tests assert it).
+- [x] **Locked backup:** PBKDF2-SHA-256 (600k) + AES-256-GCM with an authenticated header
+      (`phone/backup.ts`); restore verifies, previews, and needs an explicit replace; monthly
+      reminder on Today.
 - [x] **Robinhood import (no API, no keys):** the phone reads Robinhood's account activity CSV
       locally (`phone/robinhood.ts`). Buy/Sell/SPL/REC/ACATI change shares; cash codes are skipped;
       unknown codes and options are reported, never guessed. Real history = shares held each day x

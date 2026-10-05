@@ -15,7 +15,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request
   const url = new URL(req.url)
   if (req.method !== 'GET' || url.origin !== self.location.origin) return
-  const fresh = req.mode === 'navigate' || url.pathname.endsWith('/snapshot.json') || url.pathname.endsWith('/index.html')
+  const fresh = req.mode === 'navigate' || url.pathname.endsWith('/snapshot.json') || url.pathname.endsWith('/status.json') || url.pathname.endsWith('/index.html')
   if (fresh) {
     // Network first so data and app updates arrive; cached copy when offline.
     e.respondWith(

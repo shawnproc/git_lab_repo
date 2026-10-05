@@ -57,9 +57,13 @@ export interface DollarSplit {
 }
 
 /** New money goes to whatever is furthest below target first. Never suggests selling.
- * Dollars only: at the broker you buy "in dollars", so no share prices are needed. */
-export function splitContribution(amount: number, targets: PlanTarget[], values: Record<string, number>): { allocations: DollarSplit[]; leftover: number } {
-  if (amount <= 0 || targets.length === 0) return { allocations: [], leftover: amount }
+ * Dollars only: at the broker you buy "in dollars", so no share prices are needed.
+ * `skip` (price-flagged holdings) gets no new money this time; it goes to the next most-behind
+ * holdings instead. If everything would be skipped, nothing is. Mirrors split_contribution. */
+export function splitContribution(amount: number, allTargets: PlanTarget[], values: Record<string, number>, skip: ReadonlySet<string> = new Set()): { allocations: DollarSplit[]; leftover: number } {
+  if (amount <= 0 || allTargets.length === 0) return { allocations: [], leftover: amount }
+  const eligible = allTargets.filter((t) => !skip.has(t.symbol))
+  const targets = eligible.length > 0 ? eligible : allTargets
   const total = Object.values(values).reduce((a, v) => a + v, 0)
   const newTotal = total + amount
   const deficits = new Map(targets.map((t) => [t.symbol, Math.max(0, (t.target_pct / 100) * newTotal - (values[t.symbol] ?? 0))]))
@@ -79,6 +83,49 @@ export function splitContribution(amount: number, targets: PlanTarget[], values:
   const biggest = allocations.reduce<DollarSplit | undefined>((m, x) => (!m || x.amount > m.amount ? x : m), undefined)
   if (biggest && cents !== 0) biggest.amount = (Math.round(biggest.amount * 100) + cents) / 100
   return { allocations, leftover: 0 }
+}
+
+// --- targets (mirror of core/plan.py build_targets / sleeve_weights) ---------------------
+
+/** Split `total` in proportion to `weights`, no share above `cap`; a capped share's excess is
+ * shared among the uncapped ones. Only if every share is capped is anything left over. */
+export function sleeveWeights(total: number, weights: number[], cap: number): number[] {
+  const out = weights.map(() => 0)
+  let free = weights.map((_, i) => i).filter((i) => (weights[i] ?? 0) > 0)
+  let remaining = total
+  while (free.length > 0 && remaining > 1e-12) {
+    const wsum = free.reduce((a, i) => a + (weights[i] ?? 0), 0)
+    const trial = new Map(free.map((i) => [i, (remaining * (weights[i] ?? 0)) / wsum]))
+    const over = free.filter((i) => (out[i] ?? 0) + (trial.get(i) ?? 0) > cap + 1e-12)
+    if (over.length === 0) {
+      for (const i of free) out[i] = (out[i] ?? 0) + (trial.get(i) ?? 0)
+      remaining = 0
+      break
+    }
+    for (const i of over) {
+      remaining -= cap - (out[i] ?? 0)
+      out[i] = cap
+    }
+    free = free.filter((i) => !over.includes(i))
+  }
+  return out
+}
+
+export interface CoreFund { symbol: string; weight_pct: number }
+
+/** Core funds share `100 - stocksPct` in their configured proportions; stocks share `stocksPct`
+ * by weight, each capped. Always sums to 100%. */
+export function buildTargets<T extends PlanTarget & { weight?: number }>(core: (PlanTarget & { base_pct?: number })[], coreFunds: CoreFund[], stocks: T[], stocksPct: number, cap: number): (PlanTarget | T)[] {
+  const shares = sleeveWeights(stocksPct, stocks.map((s) => s.weight ?? 1), cap)
+  const coreTotal = 100 - shares.reduce((a, x) => a + x, 0)
+  const coreSum = coreFunds.reduce((a, f) => a + f.weight_pct, 0)
+  const byCore = new Map(core.map((c) => [c.symbol, c]))
+  const out: (PlanTarget | T)[] = coreFunds.map((f) => {
+    const c = byCore.get(f.symbol)
+    return { symbol: f.symbol, name: c?.name ?? f.symbol, kind: 'core' as const, why: c?.why ?? '', target_pct: (coreTotal * f.weight_pct) / coreSum }
+  })
+  stocks.forEach((s, i) => out.push({ ...s, target_pct: shares[i] ?? 0 }))
+  return out
 }
 
 // --- the growing wall ---------------------------------------------------------------------

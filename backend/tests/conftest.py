@@ -114,7 +114,9 @@ def company_values(name: str, year: int) -> dict[str, float]:
     oi = rev * (c["m"] + c["dm"] * (year - 2021))
     cfo = rev * c["fcf"] * 1.2
     capex = cfo - rev * c["fcf"]
-    return {"rev": rev, "oi": oi, "cfo": cfo, "capex": capex, "debt": oi * c["debt"]}
+    # A fixed share count, so earnings per share grows with profit (after a 20% tax).
+    eps = oi * 0.8 / (c["rev0"] / 100)
+    return {"rev": rev, "oi": oi, "cfo": cfo, "capex": capex, "debt": oi * c["debt"], "eps": eps}
 
 
 @dataclass
@@ -130,7 +132,7 @@ class FakeFundamentalsProvider:
             raise self.fail
         return {t: TickerInfo(int(c["cik"]), f"{t} Corp") for t, c in COMPANIES.items()}
 
-    def fetch_frame(self, tag: str, period: str) -> dict[int, FrameValue]:
+    def fetch_frame(self, tag: str, period: str, unit: str = "USD") -> dict[int, FrameValue]:
         self.calls += 1
         if self.fail:
             raise self.fail
@@ -152,7 +154,10 @@ class FakeFundamentalsProvider:
                 "NetCashProvidedByUsedInOperatingActivities": "cfo",
                 "PaymentsToAcquirePropertyPlantAndEquipment": "capex",
                 "LongTermDebt": "debt",
+                "EarningsPerShareDiluted": "eps",
             }.get(tag)
+            if (tag == "EarningsPerShareDiluted") != (unit == "USD-per-shares"):
+                continue  # each tag lives under its own unit, like the real API
             if key is None:
                 continue
             out[int(c["cik"])] = FrameValue(v[key], date(year, 12, 31), f"acc-{t}-{year}")
