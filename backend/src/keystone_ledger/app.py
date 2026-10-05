@@ -13,7 +13,13 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, sessionmaker
 
 from keystone_ledger import __version__
-from keystone_ledger.api import routes_auth, routes_market, routes_plan, routes_wall
+from keystone_ledger.api import (
+    routes_auth,
+    routes_market,
+    routes_plan,
+    routes_research,
+    routes_wall,
+)
 from keystone_ledger.api.deps import AppState
 from keystone_ledger.api.security import SecurityMiddleware
 from keystone_ledger.config import AppConfig, load_config
@@ -27,6 +33,7 @@ from keystone_ledger.data.registry import (
     build_macro_provider,
     build_price_provider,
 )
+from keystone_ledger.data.research_feed import ResearchFeed
 from keystone_ledger.data.service import MarketDataService
 from keystone_ledger.db.session import init_schema, make_engine, make_session_factory, transaction
 from keystone_ledger.planner import Planner
@@ -45,6 +52,7 @@ def build_state(
     clock: Clock = utcnow,
     market_factory: Callable[[sessionmaker[Session]], MarketDataService] | None = None,
     fundamentals_factory: Callable[[sessionmaker[Session]], FundamentalsService] | None = None,
+    research: ResearchFeed | None = None,
 ) -> AppState:
     cfg = config if config is not None else load_config(settings.config_path)
     engine = make_engine(None if in_memory else settings.db_path)
@@ -79,6 +87,9 @@ def build_state(
             max_age=timedelta(days=cfg.data.fundamentals_max_age_days),
             clock=clock,
         )
+    if research is None:
+        cache = None if in_memory else settings.data_dir / "research-cache.json"
+        research = ResearchFeed(settings.research_url, cache, clock)
     return AppState(
         settings=settings,
         config=cfg,
@@ -86,7 +97,8 @@ def build_state(
         auth=AuthService(policy, clock),
         market=market,
         fundamentals=fundamentals,
-        planner=Planner(cfg, market, fundamentals),
+        planner=Planner(cfg, market, fundamentals, research),
+        research=research,
     )
 
 
@@ -117,6 +129,7 @@ def create_app(
     app.include_router(routes_market.router)
     app.include_router(routes_plan.router)
     app.include_router(routes_wall.router)
+    app.include_router(routes_research.router)
 
     if frontend_dist is not None and (frontend_dist / "index.html").is_file():
         app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")

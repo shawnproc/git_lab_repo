@@ -69,6 +69,13 @@ data, educational only.
       cap; never on an old verdict). Live prices: Finnhub `/quote` with the owner's own key,
       stored only in localStorage `keystone.live.v1` (`phone/live.ts`), CSP allows only
       `https://finnhub.io`; display only, never an input to buy math.
+      PC app: `data/research_feed.py` downloads the published research.json (`KL_RESEARCH_URL`,
+      https only, 30 MB cap, validated, cached to the data dir; GET is cache-only, POST
+      `/api/research/refresh` with CSRF downloads when over 6 h old). Watchlist in SQLite
+      (`watchlist`, schema v4): price and verdict copied from the server's search data, never
+      from the request; include allowed only for a current Good fit, max 5; included picks enter
+      `build_targets(extra=...)` under the same cap. The Search screen is shared
+      (`phone/Search.tsx` with a `Watch` adapter).
 
 ## Rules (all in `config/keystone.toml`)
 | Feature | Rule |

@@ -17,7 +17,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from keystone_ledger.db.types import UTCDateTime
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 class Base(DeclarativeBase):
@@ -178,3 +178,18 @@ class Contribution(Base):
     amount: Mapped[float] = mapped_column(Float)
     note: Mapped[str] = mapped_column(String(120), default="")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+# --- watchlist (Search) -----------------------------------------------------------------------
+
+
+class WatchItem(Base):
+    """A company the owner saved from Search. The price and verdict are copied from the search
+    data at the moment it was saved (never typed in), so later changes can be shown."""
+
+    __tablename__ = "watchlist"
+    symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
+    added_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    added_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    verdict_at_add: Mapped[str] = mapped_column(String(16))
+    include: Mapped[bool] = mapped_column(default=False)  # in buy days while still a Good fit

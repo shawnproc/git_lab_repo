@@ -49,16 +49,22 @@ def build_targets(
     picks: Sequence[tuple[str, str]],
     weights: Sequence[float] | None = None,
     stocks_pct: float | None = None,
+    extra: Sequence[tuple[str, str]] = (),
 ) -> list[Target]:
     """Core funds share `100 - stocks_pct` in their configured proportions; picked stocks share
     `stocks_pct` by `weights` (equal when omitted), each capped at `max_single_stock_pct`.
+    `extra`: the owner's included Search picks (weight 1 each), after the plan's own picks.
 
     Whatever the cap (or an empty screen) leaves unallocated goes to the core funds in proportion
     to their weights, so targets always sum to 100%.
     """
-    stocks = list(picks)[: plan.max_stocks]
+    own = list(picks)[: plan.max_stocks]
+    taken = {sym for sym, _ in own}
+    added = [(sym, why) for sym, why in extra if sym not in taken]
+    stocks = own + added
     sleeve = plan.stocks_pct if stocks_pct is None else stocks_pct
-    w = list(weights)[: len(stocks)] if weights is not None else [1.0] * len(stocks)
+    w = list(weights)[: len(own)] if weights is not None else [1.0] * len(own)
+    w += [1.0] * len(added)
     shares = sleeve_weights(sleeve, w, plan.max_single_stock_pct)
     core_total = 100.0 - sum(shares)
     # Config guarantees core_pct > 0 (1-3 funds, each with a positive weight).

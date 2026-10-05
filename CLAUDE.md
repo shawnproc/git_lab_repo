@@ -44,6 +44,7 @@ backend/src/keystone_ledger/
                      plan.py (targets, drift, contribution), chart.py (SMA, crossovers, big moves)
   planner.py         glue: reads caches, calls the pure engine (no provider calls unless `refresh*`)
   learn.py           validates content/learn.json
+  data/research_feed.py  PC copy of the public research.json (Search), validated + cached
   data/              base.py (Protocols + validation), *_provider.py, service.py (price cache),
                      fundamentals.py (SEC cache), sec_provider.py (EDGAR frames API)
   db/                models.py (SQLAlchemy), session.py, types.py (UTCDateTime)

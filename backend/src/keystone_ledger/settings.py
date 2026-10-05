@@ -61,6 +61,15 @@ class Settings(BaseSettings):
 
     # SEC EDGAR fair-access policy requires a descriptive User-Agent with a contact address.
     sec_user_agent: str = ""
+    # Search data: the same public research.json the phone app uses (built by the daily job).
+    research_url: str = "https://shawnproc.github.io/git_lab_repo/research.json"
+
+    @field_validator("research_url")
+    @classmethod
+    def _https(cls, v: str) -> str:
+        if not v.startswith("https://") or any(c.isspace() for c in v) or len(v) > 300:
+            raise ValueError("research_url must be an https:// URL")
+        return v
 
     @field_validator("host")
     @classmethod
