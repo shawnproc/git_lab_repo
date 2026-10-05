@@ -54,7 +54,7 @@ describe('Home', () => {
     expect(screen.getByText(/Calm and rising\. Business as usual/)).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Market mood: green' })).toBeInTheDocument()
     expect(screen.getByText(/← today/)).toHaveTextContent('Calm and rising')
-    expect(screen.getAllByText(/Margin note: What does this mean\?/).length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText(/^What does this mean\?$/).length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText(/nicknamed the “fear gauge”/)).toBeInTheDocument()
     expect(screen.getByText('$3,000.00')).toBeInTheDocument()
     expect(screen.getByText('+$500.00')).toBeInTheDocument()

@@ -83,9 +83,9 @@ export default function App() {
             </div>
             <div className="flex items-center gap-2">
               <button className="btn btn-ghost px-3 py-1.5 text-sm" aria-label="Toggle theme"
-                title={theme === 'dark' ? 'Switch to Ledger (light paper)' : 'Switch to Blueprint (dark)'}
+                title={theme === 'dark' ? 'Switch to Prism (light)' : 'Switch to Aurora (dark)'}
                 onClick={() => { setTheme(theme === 'dark' ? 'light' : 'dark') }}>
-                {theme === 'dark' ? '▤ Ledger' : '▦ Blueprint'}
+                {theme === 'dark' ? '☀ Prism' : '✦ Aurora'}
               </button>
               {view === 'app' && (
                 <button className="btn btn-ghost px-3 py-1.5 text-sm" onClick={() => void logout()}>

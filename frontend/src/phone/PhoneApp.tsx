@@ -804,10 +804,10 @@ export default function PhoneApp() {
       <header className="mx-auto flex w-full max-w-2xl items-center justify-between px-4 pt-4">
         <div className="flex items-center gap-2">
           <KeystoneLogo size={30} />
-          <span className="serif text-lg font-bold">Keystone Ledger</span>
+          <span className="wordmark text-lg">Keystone Ledger</span>
         </div>
         <button className="btn btn-ghost px-2 py-1 text-xs" aria-label="Toggle theme" onClick={() => { setTheme(theme === 'dark' ? 'light' : 'dark') }}>
-          {theme === 'dark' ? '▤ Ledger' : '▦ Blueprint'}
+          {theme === 'dark' ? '☀ Prism' : '✦ Aurora'}
         </button>
       </header>
       <LiveProvider symbols={liveSymbols}>
@@ -834,12 +834,12 @@ export default function PhoneApp() {
       </main>
       </ResearchCtx.Provider>
       </LiveProvider>
-      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-10 border-t-2 border-[var(--ink)] bg-[var(--panel)]"
+      <nav aria-label="Main" className="fixed inset-x-3 bottom-3 z-10"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="mx-auto flex max-w-2xl">
+        <div className="dock mx-auto flex max-w-xl px-1">
           {TABS.map((t) => (
             <a key={t.id} href={`#/${t.id}`} aria-current={tab === t.id ? 'page' : undefined}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[0.7rem] font-semibold ${tab === t.id ? 'text-[var(--color-brand-2)]' : 'muted'}`}>
+              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[0.68rem] font-semibold tracking-wide ${tab === t.id ? '' : 'muted'}`}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={t.icon} /></svg>
               {t.label}
             </a>

@@ -41,7 +41,7 @@ const TONE: Record<Verdict, string> = {
 
 export function VerdictBadge({ v }: { v: Verdict }) {
   return (
-    <span className={`inline-flex items-center gap-1 border-2 px-2 py-0.5 text-xs font-bold ${TONE[v]}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-bold ${TONE[v]}`}>
       <span aria-hidden>{MARK[v]}</span>{VERDICT_WORDS[v]}
     </span>
   )

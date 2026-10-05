@@ -1,6 +1,6 @@
 // Keystone Ledger offline cache. Same-origin GET only; nothing personal is ever cached here
 // (holdings and the wall live in local storage, not in HTTP responses).
-const CACHE = 'keystone-v3'
+const CACHE = 'keystone-v4'
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './snapshot.json', './manifest.webmanifest'])).catch(() => undefined))

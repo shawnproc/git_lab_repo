@@ -1,100 +1,107 @@
 @import "tailwindcss";
-@import "@fontsource-variable/fraunces";
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
-@import "@fontsource/ibm-plex-sans/700.css";
-@import "@fontsource/ibm-plex-mono/400.css";
-@import "@fontsource/ibm-plex-mono/600.css";
+@import "@fontsource-variable/unbounded";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 
 /*
-  Keystone Ledger visual identity.
-  Two themes that tell one story:
-    BLUEPRINT (html.dark, default): an architect's drawing. Deep blue paper, drafting grid, white
-      and cyan linework, brass highlights.
-    LEDGER (html.light): a bookkeeper's ruled ledger. Cream paper, blue rules, red margin line,
-      ink-navy text, brass and terracotta.
-  Shapes come from masonry: keystone-shaped tabs, square-cornered sheets with crop marks, stone
-  blocks, a spirit level, inked stamps.
+  Keystone Ledger visual identity: AURORA.
+    AURORA (html.dark, default): deep space with slow-moving aurora light behind frosted glass.
+      Acid-lime actions, violet and cyan glow, wide futuristic display type (Unbounded).
+    PRISM (html.light): the same system in daylight. Pearl background with iridescent light,
+      ink-black type, violet-to-magenta actions.
+  Shape language: soft 22px glass slabs with gradient hairlines, pill controls, glowing focus.
+  Every color is a token below; charts use the validated --chart-* and --ev-* sets.
 */
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
-  --font-serif: "Fraunces Variable", Georgia, "Times New Roman", serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
-  --color-brand: #1f4e8c;
-  --color-brand-2: #a8780a;
-  --color-up: #1f7a45;
-  --color-down: #b3261e;
-  --color-warn: #8a5d00;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-serif: "Unbounded Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, Consolas, monospace;
+  --color-brand: #5b4ee0;
+  --color-brand-2: #d6246e;
+  --color-up: #0d8a52;
+  --color-down: #d1284f;
+  --color-warn: #9a6200;
 }
 
-/* ---------- LEDGER (light) ---------- */
+/* ---------- PRISM (light) ---------- */
 :root {
   color-scheme: light;
-  --bg: #efe7d3;
-  --panel: #f8f3e6;
-  --panel-2: #efe7d2;
-  --line: #cdbf9d;
-  --rule: rgb(31 78 140 / 0.11);
-  --margin: rgb(200 67 47 / 0.55);
-  --text: #1b2333;
-  --muted: #5c584c;
-  --ink: #1f4e8c;
-  --on-ink: #f8f3e6;
-  --shadow-ink: #1b2333;
-  --stone-core: #1f4e8c;
-  --stone-core-2: #3a6aa8;
-  --stone-pick: #a8780a;
-  --stone-pick-2: #c4932a;
-  --color-brand: #1f4e8c;
-  --color-brand-2: #a8780a;
-  --color-up: #1f7a45;
-  --color-down: #b3261e;
-  --color-warn: #8a5d00;
-  /* chart palette - validated (dataviz validator) against #f8f3e6 */
-  --chart-price: #2a62b8;
-  --chart-sma50: #d4612a;
-  --chart-sma200: #178f68;
-  --ev-golden: #b07d00;
-  --ev-death: #7357c9;
-  --ev-up: #13865a;
-  --ev-down: #c8432f;
+  --bg: #f3f1fb;
+  --panel: #ffffff;
+  --panel-2: #eeebfa;
+  --glass: rgb(255 255 255 / 0.74);
+  --line: rgb(60 40 140 / 0.14);
+  --text: #120f24;
+  --muted: #5d5878;
+  --ink: #120f24;
+  --on-ink: #ffffff;
+  --shadow-ink: rgb(91 78 224 / 0.35);
+  --grad-a: #5b4ee0;
+  --grad-b: #d6246e;
+  --grad-c: #ff7a2f;
+  --btn-text: #ffffff;
+  --aurora-1: rgb(124 108 255 / 0.32);
+  --aurora-2: rgb(255 80 160 / 0.22);
+  --aurora-3: rgb(40 200 255 / 0.24);
+  --stone-core: #5b4ee0;
+  --stone-core-2: #7f73ff;
+  --stone-pick: #d6246e;
+  --stone-pick-2: #ff5c9a;
+  --color-brand: #5b4ee0;
+  --color-brand-2: #d6246e;
+  --color-up: #0d8a52;
+  --color-down: #d1284f;
+  --color-warn: #9a6200;
+  /* chart palette - validated (dataviz validator) against #ffffff */
+  --chart-price: #5b4ee0;
+  --chart-sma50: #d0601c;
+  --chart-sma200: #0f8f73;
+  --ev-golden: #a87700;
+  --ev-death: #7556e0;
+  --ev-up: #137aa0;
+  --ev-down: #cc4a1e;
 }
 
-/* ---------- BLUEPRINT (dark) ---------- */
+/* ---------- AURORA (dark) ---------- */
 :root.dark {
   color-scheme: dark;
-  --bg: #0a2240;
-  --panel: #0d2a4a;
-  --panel-2: #113457;
-  --line: rgb(158 205 255 / 0.32);
-  --rule: rgb(140 190 255 / 0.07);
-  --margin: transparent;
-  --text: #eaf3ff;
-  --muted: #a9c2df;
-  --ink: #f2c14e;
-  --on-ink: #0a2240;
-  --shadow-ink: #6fc3ff;
-  --stone-core: #2f78c4;
-  --stone-core-2: #4a94da;
-  --stone-pick: #b98a1c;
-  --stone-pick-2: #d6a63a;
-  --color-brand: #7cc7ff;
-  --color-brand-2: #f2c14e;
-  --color-up: #5fd99a;
-  --color-down: #ff8a7a;
-  --color-warn: #f2c14e;
-  /* chart palette - validated against #0d2a4a */
-  --chart-price: #4a94da;
-  --chart-sma50: #d6652e;
-  --chart-sma200: #1f9f77;
-  --ev-golden: #bb8600;
-  --ev-death: #8a74e0;
-  --ev-up: #1d9462;
-  --ev-down: #d94a35;
+  --bg: #07060d;
+  --panel: #141226;
+  --panel-2: #1c1934;
+  --glass: rgb(20 18 38 / 0.62);
+  --line: rgb(180 170 255 / 0.16);
+  --text: #f4f2ff;
+  --muted: #a8a3c9;
+  --ink: #c6ff3d;
+  --on-ink: #0b0a12;
+  --shadow-ink: rgb(198 255 61 / 0.35);
+  --grad-a: #c6ff3d;
+  --grad-b: #3ee6ff;
+  --grad-c: #9d90ff;
+  --btn-text: #0b0a12;
+  --aurora-1: rgb(124 92 255 / 0.42);
+  --aurora-2: rgb(0 220 255 / 0.22);
+  --aurora-3: rgb(255 60 170 / 0.24);
+  --stone-core: #6f5cff;
+  --stone-core-2: #8b7bff;
+  --stone-pick: #19c2d6;
+  --stone-pick-2: #3ee6ff;
+  --color-brand: #9d90ff;
+  --color-brand-2: #3ee6ff;
+  --color-up: #3df5a7;
+  --color-down: #ff6b8e;
+  --color-warn: #ffc53d;
+  /* chart palette - validated against #141226 */
+  --chart-price: #8b7bff;
+  --chart-sma50: #dd6a1f;
+  --chart-sma200: #14a184;
+  --ev-golden: #b98a00;
+  --ev-death: #7a5cf0;
+  --ev-up: #1595a0;
+  --ev-down: #e2572b;
 }
 
 html,
@@ -104,31 +111,44 @@ body,
 }
 
 body {
+  position: relative;
   color: var(--text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   background-color: var(--bg);
-  /* Ledger: blue ruled lines + red margin. */
-  background-image:
-    linear-gradient(90deg, transparent 0 calc(3.25rem - 1px), var(--margin) calc(3.25rem - 1px) 3.25rem, transparent 3.25rem),
-    repeating-linear-gradient(180deg, transparent 0 31px, var(--rule) 31px 32px);
-  background-attachment: fixed;
 }
 
-:root.dark body {
-  /* Blueprint: minor + major drafting grid. */
-  background-image:
-    repeating-linear-gradient(0deg, rgb(140 190 255 / 0.11) 0 1px, transparent 1px 96px),
-    repeating-linear-gradient(90deg, rgb(140 190 255 / 0.11) 0 1px, transparent 1px 96px),
-    repeating-linear-gradient(0deg, var(--rule) 0 1px, transparent 1px 24px),
-    repeating-linear-gradient(90deg, var(--rule) 0 1px, transparent 1px 24px),
-    radial-gradient(1200px 700px at 50% -20%, rgb(80 150 230 / 0.25), transparent 70%);
+/* Aurora: three slow, blurred light fields behind everything (fixed, so content scrolls over). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20vmax;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38vmax 30vmax at 18% 12%, var(--aurora-1), transparent 70%),
+    radial-gradient(34vmax 28vmax at 85% 22%, var(--aurora-2), transparent 70%),
+    radial-gradient(40vmax 32vmax at 55% 95%, var(--aurora-3), transparent 70%);
+  filter: blur(30px) saturate(130%);
+  animation: aurora 28s ease-in-out infinite alternate;
 }
 
-@media (max-width: 640px) {
-  body {
-    background-image: repeating-linear-gradient(180deg, transparent 0 31px, var(--rule) 31px 32px);
-  }
+/* Fine grain so the glass reads as a material, not flat color. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: radial-gradient(rgb(255 255 255 / 0.9) 0.5px, transparent 0.6px);
+  background-size: 3px 3px;
+}
+
+@keyframes aurora {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  50% { transform: translate3d(4vmax, -3vmax, 0) rotate(8deg) scale(1.08); }
+  100% { transform: translate3d(-3vmax, 2vmax, 0) rotate(-6deg) scale(1.04); }
 }
 
 h1,
@@ -137,8 +157,27 @@ h3,
 h4,
 .serif {
   font-family: var(--font-serif);
-  font-optical-sizing: auto;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.035em;
+  font-weight: 600;
+}
+
+/* Sentences set in the display style read better in the text face: bold, not wide. */
+.serif.text-lg,
+.serif.text-xl,
+.serif.text-base {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+/* Big headline numbers and page titles get an iridescent sweep. */
+h2.text-4xl,
+.serif.text-5xl,
+.serif.text-4xl {
+  background: linear-gradient(100deg, var(--text) 35%, var(--grad-b) 78%, var(--grad-c));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .num,
@@ -151,96 +190,91 @@ h4,
   color: var(--muted);
 }
 
-/* ---------- Sheet: square corners, hairline border, crop marks ---------- */
+/* ---------- Glass slab with a gradient hairline ---------- */
 .panel {
   position: relative;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 2px;
-  box-shadow: 0 1px 0 rgb(0 0 0 / 0.04), 0 10px 24px -18px rgb(0 0 0 / 0.45);
-  --mark: var(--color-brand-2);
-  background-image:
-    linear-gradient(var(--mark), var(--mark)), linear-gradient(var(--mark), var(--mark)),
-    linear-gradient(var(--mark), var(--mark)), linear-gradient(var(--mark), var(--mark)),
-    linear-gradient(var(--mark), var(--mark)), linear-gradient(var(--mark), var(--mark)),
-    linear-gradient(var(--mark), var(--mark)), linear-gradient(var(--mark), var(--mark));
-  background-size:
-    14px 2px, 2px 14px, 14px 2px, 2px 14px,
-    14px 2px, 2px 14px, 14px 2px, 2px 14px;
-  background-position:
-    -1px -1px, -1px -1px, calc(100% + 1px) -1px, calc(100% + 1px) -1px,
-    -1px calc(100% + 1px), -1px calc(100% + 1px), calc(100% + 1px) calc(100% + 1px), calc(100% + 1px) calc(100% + 1px);
-  background-repeat: no-repeat;
+  border: 1px solid transparent;
+  border-radius: 22px;
+  background:
+    linear-gradient(var(--glass), var(--glass)) padding-box,
+    linear-gradient(135deg, color-mix(in oklab, var(--grad-c) 60%, transparent), var(--line) 38%, var(--line) 62%, color-mix(in oklab, var(--grad-b) 55%, transparent)) border-box;
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.06) inset, 0 30px 60px -40px rgb(0 0 0 / 0.6);
 }
 
 .card-title {
   font-family: var(--font-serif);
-  font-weight: 650;
-  font-size: 1.25rem;
+  font-weight: 600;
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
 }
 
 .eyebrow {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.18em;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--color-brand-2);
 }
 
-/* ---------- Inputs: fill-in-the-blank lines ---------- */
+/* ---------- Inputs: glass wells with a glowing focus ring ---------- */
 .input {
   width: 100%;
-  background: color-mix(in oklab, var(--panel-2) 70%, transparent);
-  border: 0;
-  border-bottom: 2px solid var(--line);
-  border-radius: 2px 2px 0 0;
-  padding: 0.55rem 0.7rem;
+  background: color-mix(in oklab, var(--panel-2) 75%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.65rem 0.9rem;
   color: var(--text);
   outline: none;
   font-family: var(--font-mono);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .input:focus {
-  border-bottom-color: var(--color-brand-2);
-  box-shadow: 0 2px 0 0 var(--color-brand-2);
+  border-color: var(--color-brand-2);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-brand-2) 22%, transparent);
 }
 
 select.input {
   font-family: var(--font-sans);
 }
 
-/* ---------- Buttons: inked block with a hard offset shadow (letterpress) ---------- */
+/* ---------- Buttons: gradient pills that glow ---------- */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.6rem 1.1rem;
+  padding: 0.7rem 1.3rem;
   font-weight: 700;
-  letter-spacing: 0.01em;
-  background: var(--ink);
-  color: var(--on-ink);
-  border: 2px solid var(--shadow-ink);
-  border-radius: 2px;
-  box-shadow: 4px 4px 0 0 var(--shadow-ink);
-  transition: transform 80ms ease, box-shadow 80ms ease;
+  letter-spacing: 0.005em;
+  color: var(--btn-text);
+  background: linear-gradient(110deg, var(--grad-a), var(--grad-b) 55%, var(--grad-c));
+  background-size: 180% 100%;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 10px 30px -10px var(--shadow-ink), 0 0 0 1px rgb(255 255 255 / 0.08) inset;
+  transition: transform 120ms ease, box-shadow 160ms ease, background-position 400ms ease;
 }
 
 .btn:hover:not(:disabled) {
-  transform: translate(-1px, -1px);
-  box-shadow: 5px 5px 0 0 var(--shadow-ink);
+  transform: translateY(-1px);
+  background-position: 100% 0;
+  box-shadow: 0 14px 36px -10px var(--shadow-ink), 0 0 0 1px rgb(255 255 255 / 0.12) inset;
 }
 
 .btn:active:not(:disabled) {
-  transform: translate(3px, 3px);
-  box-shadow: 1px 1px 0 0 var(--shadow-ink);
+  transform: translateY(1px) scale(0.99);
 }
 
 .btn:focus-visible,
 .tab:focus-visible,
-summary:focus-visible {
-  outline: 3px solid var(--color-brand-2);
-  outline-offset: 2px;
+summary:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-brand-2);
+  outline-offset: 3px;
 }
 
 .btn:disabled {
@@ -249,43 +283,64 @@ summary:focus-visible {
 }
 
 .btn-ghost {
-  background: transparent;
+  background: color-mix(in oklab, var(--panel-2) 60%, transparent);
   color: var(--text);
-  border-color: var(--line);
-  box-shadow: 3px 3px 0 0 var(--line);
+  border: 1px solid var(--line);
+  box-shadow: none;
 }
 
-/* ---------- Keystone tabs (wider at the top, like the stone itself) ---------- */
+.btn-ghost:hover:not(:disabled) {
+  border-color: var(--color-brand-2);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-brand-2) 18%, transparent);
+}
+
+/* ---------- Tabs: pills (PC app) ---------- */
 .tab {
-  clip-path: polygon(0 0, 100% 0, 90% 100%, 10% 100%);
-  padding: 0.55rem 1.6rem 0.5rem;
-  font-family: var(--font-serif);
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
   font-weight: 600;
   white-space: nowrap;
-  background: var(--panel-2);
   color: var(--muted);
 }
 
 .tab[aria-current="page"] {
   background: var(--ink);
   color: var(--on-ink);
+  box-shadow: 0 6px 20px -8px var(--shadow-ink);
 }
 
 .tab:hover:not([aria-current="page"]) {
   color: var(--text);
 }
 
-/* ---------- Margin note ("What does this mean?") ---------- */
+/* ---------- Floating glass dock (phone tab bar) ---------- */
+.dock {
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  background: color-mix(in oklab, var(--panel) 90%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: 0 20px 50px -20px rgb(0 0 0 / 0.7);
+}
+
+.dock a[aria-current="page"] {
+  color: var(--ink);
+}
+
+.dock a[aria-current="page"] svg {
+  filter: drop-shadow(0 0 8px var(--shadow-ink));
+}
+
+/* ---------- "What does this mean?" ---------- */
 .explain {
-  border-left: 3px solid var(--color-brand-2);
-  background: color-mix(in oklab, var(--color-brand-2) 7%, transparent);
-  border-radius: 0 2px 2px 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--color-brand) 8%, transparent);
 }
 
 .explain summary {
   list-style: none;
-  font-family: var(--font-serif);
-  font-style: italic;
+  font-weight: 600;
 }
 
 .explain summary::-webkit-details-marker {
@@ -297,54 +352,51 @@ summary:focus-visible {
   display: inline-block;
   width: 1.1rem;
   font-family: var(--font-mono);
-  font-style: normal;
 }
 
 .explain[open] summary::before {
   content: "−";
 }
 
-/* ---------- Inked stamp (stale-data warning) ---------- */
+/* ---------- Old-data warning: a hot neon panel, impossible to miss ---------- */
 .stamp {
-  border: 3px double var(--color-warn);
+  border: 1px solid var(--color-warn);
+  border-radius: 18px;
   color: var(--text);
-  transform: rotate(-0.6deg);
-  background: color-mix(in oklab, var(--color-warn) 9%, var(--panel));
+  background: color-mix(in oklab, var(--color-warn) 12%, var(--panel));
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-warn) 14%, transparent), 0 0 40px -12px var(--color-warn);
 }
 
 .stamp-label {
   display: inline-block;
   font-family: var(--font-mono);
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 0.7rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--color-warn);
-  border: 2px solid var(--color-warn);
-  padding: 0.1rem 0.5rem;
-  transform: rotate(-3deg);
+  color: var(--bg);
+  background: var(--color-warn);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
 }
 
-/* ---------- Deposit slip (contribution) ---------- */
 .slip {
   border: 1px dashed var(--line);
-  background-image: radial-gradient(circle at 6px 0, var(--bg) 4px, transparent 4.5px);
-  background-size: 18px 8px;
-  background-repeat: repeat-x;
+  border-radius: 16px;
   padding-top: 1.25rem;
 }
 
 .leader {
   flex: 1;
-  border-bottom: 2px dotted var(--line);
+  border-bottom: 1px dashed var(--line);
   margin: 0 0.5rem 0.35rem;
   min-width: 1rem;
 }
 
-/* ---------- Ledger table ---------- */
 .ledger-table th {
   font-family: var(--font-mono);
   font-size: 0.68rem;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
   font-weight: 600;
@@ -355,11 +407,21 @@ summary:focus-visible {
 }
 
 .ledger-table tbody tr:nth-child(even) {
-  background: color-mix(in oklab, var(--panel-2) 55%, transparent);
+  background: color-mix(in oklab, var(--panel-2) 45%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .btn {
+  .btn,
+  .input {
     transition: none;
   }
+  body::before {
+    animation: none;
+  }
+}
+
+.wordmark {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.04em;
 }
