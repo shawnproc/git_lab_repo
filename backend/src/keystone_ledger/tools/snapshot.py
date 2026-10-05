@@ -330,8 +330,10 @@ def plan_section(
     engine = make_engine(None)
     init_schema(engine)
     svc = FundamentalsService(make_session_factory(engine), sec, timedelta(days=1), clock)
-    svc.refresh(list(cfg.plan.candidates), force=True)
+    svc.refresh(list(cfg.plan.candidates), force=True, all_companies=cfg.data.research_enabled)
     status = svc.status()
+    if status.fetched_at is not None:
+        extras["svc"] = svc  # for the Search tab's research.json
     if status.fetched_at is None:
         carried = _carry(previous, "plan", status.last_error or "SEC refresh failed")
         if carried:
@@ -396,8 +398,12 @@ def attach_valuation(plan: dict[str, Any], prices: dict[str, Any], cfg: AppConfi
         if t.get("kind") != "stock":
             continue
         q = quotes.get(t["symbol"])
-        v = valuation(eps.get(t["symbol"], {}), year_end.get(t["symbol"], {}),
-                      q["close"] if q else None, cfg.screen.valuation_pe_multiple)  # fmt: skip
+        split_rows = ((prices.get("history") or {}).get("splits") or {}).get(t["symbol"], [])
+        splits = {date.fromisoformat(d): float(r) for d, r in split_rows}
+        v = valuation(
+            eps.get(t["symbol"], {}), year_end.get(t["symbol"], {}),
+            q["close"] if q else None, cfg.screen.valuation_pe_multiple, splits,
+        )  # fmt: skip
         t["valuation"] = _jsonable(v)
 
 
@@ -469,7 +475,9 @@ def build_snapshot(
     previous: dict[str, Any] | None = None,
     verify_links: bool = False,
     clock: Clock = utcnow,
+    side: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """`side` (if given) receives `svc`, the SEC data, so research.json can reuse it."""
     now = clock()
     extras: dict[str, Any] = {}
     plan = plan_section(now, sec, cfg, clock, previous, extras)
@@ -481,6 +489,8 @@ def build_snapshot(
         extras=price_extras,
     )  # fmt: skip
     attach_valuation(plan, price_data, cfg, extras.get("eps", {}), price_extras.get("year_end", {}))
+    if side is not None:
+        side["svc"] = extras.get("svc")
     core_us = cfg.plan.core_funds[0].symbol
     return {
         "schema": SCHEMA,
@@ -558,7 +568,7 @@ def report(snap: dict[str, Any]) -> str:
 
 
 def publish(snap: dict[str, Any], previous: dict[str, Any] | None, out: Path,
-            now: datetime) -> dict[str, Any]:  # fmt: skip
+            now: datetime, research: dict[str, Any] | None = None) -> dict[str, Any]:  # fmt: skip
     """Write snapshot.json only if it validates; otherwise keep the last good one. Always write
     status.json next to it, so the phone knows whether today's update worked."""
     errors = validate(snap, previous)
@@ -574,8 +584,36 @@ def publish(snap: dict[str, Any], previous: dict[str, Any] | None, out: Path,
         "kept_previous": kept,
         "errors": errors[:20],
     }
+    if research is not None:
+        status["research"] = research
     (out.parent / "status.json").write_text(json.dumps(status, indent=1), encoding="utf-8")
     return status
+
+
+def run_research(snap: dict[str, Any], svc: FundamentalsService | None, cfg: AppConfig,
+                 prices: Any, out: Path, previous_url: str | None) -> dict[str, Any]:  # fmt: skip
+    """Build and write research.json (next to snapshot.json). It only publishes if it validates;
+    otherwise the last good one is kept. It never stops the snapshot from publishing."""
+    from keystone_ledger.tools.research import build_research, write_research
+
+    errors: list[str] = []
+    research: dict[str, Any] | None = None
+    if not cfg.data.research_enabled:
+        errors.append("research: turned off in the config")
+    elif svc is None:
+        errors.append("research: SEC data unavailable today")
+    else:
+        now = datetime.fromisoformat(snap["generated_at"])
+        last = date.fromisoformat(snap["prices"]["expected_day"]) if snap["prices"].get(
+            "expected_day") else now.date()  # fmt: skip
+        try:
+            research = build_research(now, last, svc, cfg, prices,
+                                      snap["prices"].get("quotes", {}))  # fmt: skip
+        except Exception as exc:  # a bug here must never cost the day's snapshot
+            log.exception("research: build failed")
+            errors.append(f"research: build failed ({type(exc).__name__})")
+    prev_url = previous_url.rsplit("/", 1)[0] + "/research.json" if previous_url else None
+    return write_research(research, errors, out.parent / "research.json", prev_url)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -595,6 +633,8 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config(settings.config_path if settings.config_path.exists()
                       else REPO_ROOT / "config" / "keystone.example.toml")  # fmt: skip
     previous = _load_previous(args.previous)
+    side: dict[str, Any] = {}
+    prices = YFinanceProvider(MinIntervalLimiter(1.0))
     snap = build_snapshot(
         cfg=cfg,
         fred=FredCsvProvider(MinIntervalLimiter(1.0)),
@@ -602,11 +642,13 @@ def main(argv: list[str] | None = None) -> int:
             settings.sec_user_agent, MinIntervalLimiter(cfg.data.sec_requests_per_second)
         ),
         calendar=MarketCalendar(),
-        prices=YFinanceProvider(MinIntervalLimiter(1.0)),
+        prices=prices,
         previous=previous,
         verify_links=args.verify_links,
+        side=side,
     )
-    status = publish(snap, previous, args.out, utcnow())
+    research = run_research(snap, side.get("svc"), cfg, prices, args.out, args.previous)
+    status = publish(snap, previous, args.out, utcnow(), research)
     if not status["ok"]:
         log.error("snapshot: NOT published, %s: %s",
                   "kept the last good one" if status["kept_previous"] else "no good one to keep",

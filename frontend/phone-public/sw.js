@@ -1,6 +1,6 @@
 // Keystone Ledger offline cache. Same-origin GET only; nothing personal is ever cached here
 // (holdings and the wall live in local storage, not in HTTP responses).
-const CACHE = 'keystone-v2'
+const CACHE = 'keystone-v3'
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './snapshot.json', './manifest.webmanifest'])).catch(() => undefined))
@@ -15,7 +15,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request
   const url = new URL(req.url)
   if (req.method !== 'GET' || url.origin !== self.location.origin) return
-  const fresh = req.mode === 'navigate' || url.pathname.endsWith('/snapshot.json') || url.pathname.endsWith('/status.json') || url.pathname.endsWith('/index.html')
+  const fresh = req.mode === 'navigate' || url.pathname.endsWith('/snapshot.json') || url.pathname.endsWith('/status.json') || url.pathname.endsWith('/research.json') || url.pathname.endsWith('/index.html')
   if (fresh) {
     // Network first so data and app updates arrive; cached copy when offline.
     e.respondWith(
