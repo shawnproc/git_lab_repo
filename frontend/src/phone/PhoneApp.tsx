@@ -1,4 +1,4 @@
-import { type ChangeEvent, type SubmitEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, createContext, type SubmitEvent, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { localMonth, type Plan as PlanData } from '../api'
 import { KeystoneLogo, MoodArch, SpiritLevel } from '../components/brand'
 import { GrowingWall, WallStats } from '../components/GrowingWall'
@@ -15,12 +15,18 @@ import { buyStatus, CADENCE_WORDS, CADENCES, type Cadence, defaultSchedule, type
 import { BackupCard, BackupReminder, CompanyStatus, FreshnessBar, OverlapCard, SleeveCard, SplitSetting, TopThree } from './Insights'
 import { freshnessOf, type Snapshot, skipFor, targetsFor } from './model'
 import type { Freshness, RefreshStatus } from './stale'
+import { fetchResearch, type Research } from './research'
+import { SearchPage } from './Search'
 import { askPersistent, load, newId, type PhoneData, save } from './store'
 
 // ---------------------------------------------------------------------------------------------
 // Snapshot: public market data, rebuilt every weekday by GitHub Actions.
 
 export type { Snapshot } from './model'
+
+/** Today's search data (null until loaded or if it failed), for included Search picks. */
+const ResearchCtx = createContext<Research | null>(null)
+const useTargets = (snap: Snapshot, data: PhoneData) => targetsFor(snap, data, useContext(ResearchCtx))
 
 const MAX_AGE_DAYS = 4 // a long weekend plus a missed run
 const NO_HISTORY: History = { days: [], closes: {} }
@@ -116,7 +122,7 @@ const MOOD_LABEL = { green: 'Green', yellow: 'Yellow', red: 'Red', unknown: 'Not
 function Today({ snap, data, theme, update, fresh, now }: { snap: Snapshot; data: PhoneData; theme: Theme; update: (d: PhoneData) => void; fresh: Freshness; now: Date }) {
   const wall = buildWall(data.entries, localMonth())
   const m = snap.mood.result
-  const targets = targetsFor(snap, data)
+  const targets = useTargets(snap, data)
   return (
     <div className="space-y-5">
       <FreshnessBar snap={snap} fresh={fresh} />
@@ -208,9 +214,11 @@ function TodaysMove({ snap, data, update, fresh }: { snap: Snapshot; data: Phone
   const held = valuesOf(snap, data)
   const status = buyStatus(today, schedule, buyDays(data))
   // Mood is never an input here: buy days come from your schedule, amounts from your targets.
-  const targets = targetsFor(snap, data)
+  const targets = useTargets(snap, data)
   const skip = skipFor(targets)
   const split = splitContribution(schedule.amount, targets, held, skip)
+  const research = useContext(ResearchCtx)
+  const waiting = research === null && data.watchlist.some((w) => w.include)
 
   function saveSchedule(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -234,6 +242,7 @@ function TodaysMove({ snap, data, update, fresh }: { snap: Snapshot; data: Phone
         <div className="eyebrow">Today’s move</div>
         {!editing && <button type="button" className="muted text-xs underline" onClick={() => { setEditing(true) }}>Change schedule</button>}
       </div>
+      {waiting && <p className="mt-1 text-xs">Your Search picks aren’t in this split yet: today’s search data hasn’t loaded. They’re never added on an old verdict.</p>}
       {editing ? (
         <form onSubmit={saveSchedule} className="mt-2 space-y-3 text-sm">
           <p>Set your buy days to match your paydays. Steady buying on a schedule is the habit that grows money; guessing the “right day” usually doesn’t.</p>
@@ -490,7 +499,7 @@ function RobinhoodImport({ snap, data, update }: { snap: Snapshot; data: PhoneDa
 }
 
 function Invest({ snap, data, update, fresh }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void; fresh: Freshness }) {
-  const targets = targetsFor(snap, data)
+  const targets = useTargets(snap, data)
   const quotes = quotesOf(snap)
   const held = valuesOf(snap, data)
   const priced = (s: string) => s in quotes
@@ -721,7 +730,7 @@ function Invest({ snap, data, update, fresh }: { snap: Snapshot; data: PhoneData
 function PlanPage({ snap, data, update }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void }) {
   const total = Object.values(valuesOf(snap, data)).reduce((a, v) => a + v, 0)
   const basis = total > 0 ? total : 10_000
-  const targets = targetsFor(snap, data)
+  const targets = useTargets(snap, data)
   const plan: PlanData = {
     targets: targets.map((t) => ({ ...t, target_value: Math.round((t.target_pct / 100) * basis * 100) / 100 })),
     screen: snap.plan.screen,
@@ -808,6 +817,7 @@ function WallPage({ data, update }: { data: PhoneData; update: (d: PhoneData) =>
 const TABS = [
   { id: 'today', label: 'Today', icon: 'M3 20h18M5 20v-6a7 7 0 0 1 14 0v6M10 7l2-3 2 3' },
   { id: 'invest', label: 'Invest', icon: 'M12 3v18M7 8h7a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h8' },
+  { id: 'search', label: 'Search', icon: 'M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM20 20l-4.8-4.8' },
   { id: 'plan', label: 'Plan', icon: 'M3 20h18M4 20v-5h7v5M13 20v-9h7v9M8 15V9h8v2' },
   { id: 'wall', label: 'Wall', icon: 'M3 6h18v4H3zM3 14h18v4H3zM9 6v4M15 14v4M7 14v4' },
   { id: 'learn', label: 'Learn', icon: 'M4 5h7a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H4zM20 5h-6a3 3 0 0 0-3 3' },
@@ -829,6 +839,8 @@ export default function PhoneApp() {
   const [data, setData] = useState<PhoneData>(load)
   const [status, setStatus] = useState<RefreshStatus | null>(null)
   const [now] = useState(() => new Date())
+  const [research, setResearch] = useState<Research | null>(null)
+  const [researchError, setResearchError] = useState<string | null>(null)
 
   useEffect(() => { applyTheme(theme) }, [theme])
   useEffect(() => {
@@ -839,6 +851,7 @@ export default function PhoneApp() {
   useEffect(() => {
     fetchSnapshot().then(setSnap, (e: unknown) => { setError(e instanceof Error ? e.message : 'Couldn’t load today’s data.') })
     fetchStatus().then(setStatus, () => { setStatus(null) })
+    fetchResearch().then(setResearch, (e: unknown) => { setResearchError(e instanceof Error ? e.message : 'Search data isn’t available.') })
     void askPersistent()
   }, [])
 
@@ -858,11 +871,18 @@ export default function PhoneApp() {
           {theme === 'dark' ? '▤ Ledger' : '▦ Blueprint'}
         </button>
       </header>
+      <ResearchCtx.Provider value={research}>
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-32 pt-6">
         {error && <p role="alert" className="mb-4 border-l-4 border-[var(--color-down)] p-3 text-sm">{error}</p>}
         {!snap && !error && <p className="muted">Loading today’s data…</p>}
         {snap && tab === 'today' && <Today snap={snap} data={data} theme={theme} update={update} fresh={freshnessOf(snap, status, now)} now={now} />}
         {snap && tab === 'invest' && <Invest snap={snap} data={data} update={update} fresh={freshnessOf(snap, status, now)} />}
+        {tab === 'search' && (
+          <SearchPage research={research} error={researchError} data={data} update={update}
+            chart={(sym) => (snap && historyOf(snap).closes[sym]
+              ? <RangeChart series={tickerSeries(sym, historyOf(snap))} theme={theme} eyebrow={`${sym} price`} label={`Line chart of ${sym}'s closing price`} />
+              : null)} />
+        )}
         {snap && tab === 'plan' && <PlanPage snap={snap} data={data} update={update} />}
         {tab === 'wall' && <WallPage data={data} update={update} />}
         {snap && tab === 'learn' && (
@@ -873,6 +893,7 @@ export default function PhoneApp() {
           <br />App version {fmtTimestamp(__APP_BUILT__)}
         </p>
       </main>
+      </ResearchCtx.Provider>
       <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-10 border-t-2 border-[var(--ink)] bg-[var(--panel)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="mx-auto flex max-w-2xl">

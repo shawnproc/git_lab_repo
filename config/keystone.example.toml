@@ -113,3 +113,6 @@ extra_tickers = [
   "F", "GM", "RIVN", "LCID", "NIO", "BA", "DAL", "AAL", "CCL", "T", "VZ", "PFE", "MRK", "ABBV",
   "MRNA", "COP", "OXY", "O", "BABA", "GME", "AMC",
 ]
+# Search tab: every US company with at least this much yearly sales gets a verdict, daily.
+research_min_revenue_usd = 1e9
+research_enabled = true

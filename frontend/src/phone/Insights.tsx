@@ -18,6 +18,7 @@ const TREND: Record<Trend, { mark: string; label: string }> = {
   steady: { mark: '●', label: 'Steady' },
   weakening: { mark: '▼', label: 'Getting weaker' },
   new: { mark: '★', label: 'New pick' },
+  search: { mark: '⌕', label: 'Your Search pick' },
 }
 
 const valuesFor = (snap: Snapshot, data: PhoneData) => holdingValues(data.shares, data.holdings, snap.prices?.quotes ?? {})

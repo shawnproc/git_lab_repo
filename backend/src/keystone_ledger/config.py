@@ -205,6 +205,9 @@ class DataConfig(_Frozen):
     fundamentals_max_age_days: int = Field(default=30, ge=1, le=365)
     # Extra tickers to price daily for the phone (public). See DEFAULT_EXTRA_TICKERS.
     extra_tickers: tuple[str, ...] = DEFAULT_EXTRA_TICKERS
+    # Search: every SEC filer with at least this much yearly sales gets a verdict in research.json.
+    research_min_revenue_usd: float = Field(default=1e9, ge=1e8, le=1e12)
+    research_enabled: bool = True
 
     @field_validator("extra_tickers")
     @classmethod

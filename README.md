@@ -70,6 +70,19 @@ for every month you bought.
   anything looks wrong.
 - **Locked backup** (Wall): one file sealed with your passphrase (AES-256). Save it to iCloud
   Drive or a USB thumb drive. Today reminds you every 30 days.
+- **Search** (Search tab): type a company or ticker (Apple, AAPL) to see its price, yearly sales,
+  dividend, a price check and the plan's 5 quality checks, with a verdict: **Good fit**, **Good
+  business, pricey right now** or **Not a fit**. Covers every US company with over $1 billion in
+  yearly sales, rebuilt every weekday evening. Verdicts measure a company against the plan's
+  rules; they are not predictions or advice.
+- **Watchlist** (Search tab): save any company to follow it: price since you saved it, and a
+  note when its verdict changes. Switch on **Include in my buy days** for a Good fit (up to 5) and
+  it joins your stocks, under the same per-company limit. If it stops being a Good fit it's paused
+  by itself (no new money; nothing is ever sold). The watchlist is on the phone and in backups.
+- **Live prices (optional):** get a free key at [finnhub.io](https://finnhub.io/register) and
+  paste it in Search → Live prices. Search and your watchlist then show the price right now,
+  refreshed every minute while the app is open. The key stays on that phone only (not in the
+  code, the public data or backups). Buy amounts always use the last close.
 
 ### Your buy-day routine (about 2 minutes)
 Open **Today**. The **Today's move** card shows whether today is a buy day (you set your schedule
@@ -208,6 +221,7 @@ that breaks these refuses to load and tells you why. Every change is recorded.
 |---|---|---|
 | Daily prices | Yahoo Finance via `yfinance` | Personal use. Requests are paced and saved, so the app asks rarely. |
 | VIX (fear gauge) | FRED (St. Louis Fed) CSV download | No key needed. |
+| Live prices (optional) | Finnhub free plan, your own key | Phone only, for looking: 60 lookups a minute; the app uses at most about 25. |
 | Company reports | SEC EDGAR | Free. Requires your name/email (set during setup). At most 5 requests a second (the SEC allows 10). |
 
 If any number is old or missing, the app says so loudly instead of guessing.

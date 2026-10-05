@@ -56,6 +56,19 @@ data, educational only.
       split is in dollars; holdings and the wall stay on the phone, with backup and restore.
       Charts stay in the PC app. If Yahoo blocks GitHub's servers, prices show "no price today"
       and the app still works from the typed-in values.
+- [x] **Search, watchlist, live prices:** the daily job also writes `research.json` (public):
+      every SEC filer with at least `research_min_revenue_usd` (default $1B) of latest yearly
+      sales, screened with the plan's checks (`core/research.py` judge: fit / pricey / no /
+      unknown; funds price-only), with one batched daily Yahoo request per ticker
+      (`fetch_batch`, 6 years: quote, dividends, splits, year-end closes). Split-safe P/E: only
+      year-ends after the last split; a split after the latest annual report makes the check
+      wait. Validated (`validate_research`); on failure the last good file stays and
+      `status.json["research"]` says why; it never blocks the snapshot. Phone: Search tab
+      (`phone/research.ts`, `Search.tsx`), watchlist in PhoneData (validated, in backups),
+      "Include in my buy days" for current Good fits only (max 5, through `buildTargets` and its
+      cap; never on an old verdict). Live prices: Finnhub `/quote` with the owner's own key,
+      stored only in localStorage `keystone.live.v1` (`phone/live.ts`), CSP allows only
+      `https://finnhub.io`; display only, never an input to buy math.
 
 ## Rules (all in `config/keystone.toml`)
 | Feature | Rule |

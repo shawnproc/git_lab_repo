@@ -90,7 +90,7 @@ describe('iPhone app', () => {
     expect(saved.shares.VXUS).toBeGreaterThan(0) // priced: tracked as (estimated) shares
     expect(saved.holdings.MSFT).toBeGreaterThan(0) // no price: tracked as dollars
     // Nothing personal was ever sent anywhere: the only requests were the public data files.
-    expect(fetchSpy.mock.calls.every((c) => /\/(snapshot|status)\.json$/.test(String((c as unknown[])[0])))).toBe(true)
+    expect(fetchSpy.mock.calls.every((c) => /\/(snapshot|status|research)\.json$/.test(String((c as unknown[])[0])))).toBe(true)
     expect(fetchSpy.mock.calls.every((c) => (c as unknown[]).length < 2 || !('body' in ((c as unknown[])[1] as object)))).toBe(true)
   })
 

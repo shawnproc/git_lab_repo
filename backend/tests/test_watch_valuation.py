@@ -148,3 +148,25 @@ def test_example_config_has_the_new_rules() -> None:
     c = AppConfig()
     assert c.screen.replace_after_failed_quarters == 2
     assert c.screen.valuation_pe_multiple == 1.5
+
+
+def test_a_stock_split_never_mixes_before_and_after_years() -> None:
+    from datetime import date
+
+    # 10-for-1 split in June 2024: split-adjusted closes, but EPS as filed (pre-split years 10x).
+    eps = {2021: 30.0, 2022: 30.0, 2023: 30.0, 2024: 3.0, 2025: 3.0}
+    closes = {2021: 60.0, 2022: 60.0, 2023: 60.0, 2024: 60.0, 2025: 60.0}
+    split = {date(2024, 6, 10): 10.0}
+    # Without the rule the old years would read P/E 2 and make today's 20 look wildly high.
+    assert valuation(eps, closes, 60.0, 1.5).flagged
+    v = valuation(eps, closes, 60.0, 1.5, split)
+    assert v.years_used == [2024, 2025] and v.median_pe is None and not v.flagged
+    assert "since its last stock split" in v.detail
+
+
+def test_a_split_after_the_latest_report_waits() -> None:
+    from datetime import date
+
+    v = valuation({2024: 3.0, 2025: 3.0}, {2024: 60.0, 2025: 60.0}, 6.0, 1.5,
+                  {date(2026, 6, 1): 10.0})  # fmt: skip
+    assert v.pe is None and not v.flagged and "waits for the next report" in v.detail

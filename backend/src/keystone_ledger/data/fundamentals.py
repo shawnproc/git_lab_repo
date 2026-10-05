@@ -82,7 +82,7 @@ class FundamentalsService:
             started_at=started, ok=ok, rows=rows, error=error[:500],
         )  # fmt: skip
 
-    def refresh(self, symbols: list[str], force: bool = False) -> None:
+    def refresh(self, symbols: list[str], force: bool = False, all_companies: bool = False) -> None:
         """Fetch every tag/period frame and keep rows for our candidates' CIKs only.
 
         Network calls happen outside any write transaction; the facts table is then replaced
@@ -107,7 +107,9 @@ class FundamentalsService:
                         ],
                     )
             with self._sf() as s:
-                ciks = set(self.cik_map(s, symbols).values())
+                # all_companies: keep every filer (the frames already return them all), for search.
+                ciks = (set(s.scalars(select(SecTicker.cik)).all()) if all_companies
+                        else set(self.cik_map(s, symbols).values()))  # fmt: skip
             for year in self.years():
                 for tags, period, unit in (
                     (DURATION_TAGS, duration_period(year), "USD"),
@@ -137,6 +139,12 @@ class FundamentalsService:
             s.add(self._log(True, started, rows=len(rows)))
 
     # --- read ---------------------------------------------------------------------------------
+
+    def all_tickers(self) -> dict[str, tuple[int, str]]:
+        """Every SEC-listed ticker -> (CIK, company name)."""
+        with self._sf() as s:
+            rows = s.execute(select(SecTicker.ticker, SecTicker.cik, SecTicker.title)).all()
+        return {t.replace("-", "."): (cik, title) for t, cik, title in rows}
 
     @staticmethod
     def cik_map(s: Session, symbols: list[str]) -> dict[str, int]:

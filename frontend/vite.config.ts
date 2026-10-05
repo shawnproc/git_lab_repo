@@ -12,7 +12,8 @@ const PHONE_CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  "connect-src 'self'",
+  // finnhub.io: live prices, only when you add your own key (see src/phone/live.ts)
+  "connect-src 'self' https://finnhub.io",
   "manifest-src 'self'",
   "worker-src 'self'",
   "object-src 'none'",

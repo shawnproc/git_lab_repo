@@ -10,8 +10,10 @@ inference, not data, so we take the raw response and let `validate_bars` drop ba
 
 from __future__ import annotations
 
+import math
+from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -66,6 +68,51 @@ def splits_from(raw: pd.DataFrame) -> dict[date, float]:
     }
 
 
+@dataclass(frozen=True)
+class BatchHistory:
+    closes: pd.Series  # date -> close (split-adjusted), ascending, positive and finite only
+    splits: dict[date, float]
+    dividends: dict[date, float]
+
+    def upto(self, last: date) -> BatchHistory:
+        """Only days through `last` (drops a session still trading)."""
+        keep = [d <= last for d in self.closes.index]
+        return BatchHistory(
+            self.closes[keep],
+            {d: r for d, r in self.splits.items() if d <= last},
+            {d: x for d, x in self.dividends.items() if d <= last},
+        )
+
+
+def parse_batch(raw: pd.DataFrame, yahoo_to_ours: dict[str, str]) -> dict[str, BatchHistory]:
+    """yfinance `download(group_by="ticker")` frame -> per-ticker history. Never fills gaps."""
+    out: dict[str, BatchHistory] = {}
+    if raw is None or raw.empty:
+        return out
+    multi = isinstance(raw.columns, pd.MultiIndex)
+    for ysym, ours in yahoo_to_ours.items():
+        if multi:
+            if ysym not in raw.columns.get_level_values(0):
+                continue
+            df = cast(pd.DataFrame, raw.xs(ysym, axis=1, level=0))
+        elif len(yahoo_to_ours) == 1:
+            df = raw
+        else:
+            continue
+        if "Close" not in df.columns:
+            continue
+        close = pd.to_numeric(df["Close"], errors="coerce")
+        idx = pd.DatetimeIndex(df.index)
+        pts = [(ts.date(), float(c)) for ts, c in zip(idx, close, strict=True)
+               if pd.notna(c) and math.isfinite(float(c)) and float(c) > 0]  # fmt: skip
+        if not pts:
+            continue
+        series = pd.Series([v for _, v in pts], index=[d for d, _ in pts], dtype=float)
+        series = series[~series.index.duplicated(keep="last")].sort_index()
+        out[ours] = BatchHistory(series, splits_from(df), dividends_from(df))
+    return out
+
+
 def dividends_from(raw: pd.DataFrame) -> dict[date, float]:
     """Cash dividends per share from yfinance's "Dividends" column (0 on ordinary days)."""
     if raw.empty or "Dividends" not in raw.columns:
@@ -82,13 +129,42 @@ def dividends_from(raw: pd.DataFrame) -> dict[date, float]:
 class YFinanceProvider:
     name = "yfinance"
 
-    def __init__(self, limiter: MinIntervalLimiter, ticker_factory: Any = None) -> None:
+    def __init__(
+        self, limiter: MinIntervalLimiter, ticker_factory: Any = None, download: Any = None
+    ) -> None:
         self._limiter = limiter
-        if ticker_factory is None:
+        if ticker_factory is None or download is None:
             import yfinance as yf
 
-            ticker_factory = yf.Ticker
+            ticker_factory = ticker_factory or yf.Ticker
+            download = download or yf.download
         self._ticker_factory = ticker_factory
+        self._download = download
+
+    def fetch_batch(
+        self, symbols: list[str], start: date, end: date, interval: str = "1d"
+    ) -> dict[str, BatchHistory]:
+        """Many tickers in one request: closes plus splits and dividends, per ticker.
+
+        Same rules as single fetches: `repair=False`, nothing filled in; a ticker with no usable
+        rows is simply absent from the result.
+        """
+        if interval not in ("1d", "1mo"):
+            raise ValueError(f"invalid interval {interval!r}")
+        syms = [validate_symbol(s) for s in symbols]
+        if not syms:
+            return {}
+        yahoo = {to_yahoo_symbol(s): s for s in syms}
+        self._limiter.wait()
+        try:
+            raw = self._download(
+                list(yahoo), start=start.isoformat(), end=(end + timedelta(days=1)).isoformat(),
+                interval=interval, group_by="ticker", auto_adjust=False, actions=True,
+                repair=False, threads=False, progress=False, timeout=30,
+            )  # fmt: skip
+        except Exception as exc:  # network, JSON, etc. Type only: no URLs or cookies.
+            raise ProviderError(f"yfinance: batch failed ({type(exc).__name__})") from exc
+        return parse_batch(raw, yahoo)
 
     def fetch_daily_bars(self, symbol: str, start: date, end: date) -> pd.DataFrame:
         return self.fetch_history(symbol, start, end)[0]
