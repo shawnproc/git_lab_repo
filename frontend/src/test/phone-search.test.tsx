@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchLiveQuote, LiveError, liveValueSeries, parseQuote, validKey } from '../phone/live'
+import { fetchLiveQuote, LiveError, type LiveRound, liveValueSeries, parseQuote, validKey } from '../phone/live'
 import { includedPicks, type Snapshot, targetsFor } from '../phone/model'
 import PhoneApp from '../phone/PhoneApp'
 import { parseResearch, type Research, searchCompanies } from '../phone/research'
@@ -211,7 +211,7 @@ describe('live prices on Today', () => {
   })
 
   it('builds the day line from real fetched prices only', () => {
-    const rounds = [{ at: 'a', prices: { VTI: 320 } }, { at: 'b', prices: { VTI: 321, NEW: 10 } }]
+    const rounds: LiveRound[] = [{ at: 'a', prices: { VTI: 320 } }, { at: 'b', prices: { VTI: 321, NEW: 10 } }]
     expect(liveValueSeries({ VTI: 2, VXUS: 1 }, { VXUS: 70 }, rounds).map((p) => p.value)).toEqual([710, 712])
     expect(liveValueSeries({ ZZZ: 1 }, {}, rounds)).toEqual([]) // nothing priced: no line, not $0
   })
