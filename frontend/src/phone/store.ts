@@ -71,14 +71,14 @@ export function parseData(raw: unknown): PhoneData {
   const shares = raw.shares === undefined ? {} : numberMap(raw.shares, 1e9)
   const asOf = raw.values_as_of
   if (asOf !== null && (typeof asOf !== 'string' || Number.isNaN(Date.parse(asOf)))) throw new Error('The backup’s date is damaged.')
-  if (!Array.isArray(raw.entries) || raw.entries.length > MAX_ENTRIES) throw new Error('The backup’s wall is damaged.')
+  if (!Array.isArray(raw.entries) || raw.entries.length > MAX_ENTRIES) throw new Error('The backup’s buy log is damaged.')
   const entries: Entry[] = raw.entries.map((e: unknown) => {
-    if (!isObj(e)) throw new Error('The backup’s wall is damaged.')
+    if (!isObj(e)) throw new Error('The backup’s buy log is damaged.')
     const { id, month, amount, note, created_at } = e
     if (typeof id !== 'string' || id.length > 64 || typeof month !== 'string' || !MONTH.test(month)
       || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > 1e7
       || typeof note !== 'string' || note.length > 120 || typeof created_at !== 'string') {
-      throw new Error('The backup has a damaged wall entry.')
+      throw new Error('The backup has a damaged buy-log entry.')
     }
     return { id, month, amount, note, created_at }
   })

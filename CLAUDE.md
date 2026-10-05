@@ -18,7 +18,8 @@ The full build plan and phase status are in `docs/PLAN.md`. Read it before start
   needs an account, API key or payment.
 - **iPhone app (GitHub Pages):** `vite build --mode phone` + `tools/snapshot.py` in the daily
   workflow. The snapshot is PUBLIC: market mood, plan picks, Learn links, never personal data.
-  Holdings and the wall live only in the phone's local storage (`frontend/src/phone/store.ts`,
+  Holdings, the buy log and the watchlist live only in the phone's local storage (the phone app has no
+  stones or wall: the owner removed them) (`frontend/src/phone/store.ts`,
   validated on load and restore). Phone math in `phone/logic.ts` mirrors the Python engine, and
   the tests use the same numbers; change both together (incl. `buildTargets`/`sleeveWeights`
   and the `skip` list). `phone/portfolio.ts`, `sleeve.ts`, `stale.ts` are phone-only and pure.
