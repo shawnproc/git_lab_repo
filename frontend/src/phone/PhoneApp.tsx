@@ -17,6 +17,8 @@ import { freshnessOf, type Snapshot, skipFor, targetsFor } from './model'
 import type { Freshness, RefreshStatus } from './stale'
 import { fetchResearch, type Research } from './research'
 import { phoneWatch, SearchPage } from './Search'
+import { LiveProvider, useLive } from './LiveContext'
+import { LiveNow } from './LiveNow'
 import { askPersistent, load, newId, type PhoneData, save } from './store'
 
 // ---------------------------------------------------------------------------------------------
@@ -129,6 +131,7 @@ function Today({ snap, data, theme, update, fresh, now }: { snap: Snapshot; data
       <Stamp snap={snap} />
       <BackupReminder data={data} now={now} />
       <TodaysMove snap={snap} data={data} update={update} fresh={fresh} />
+      <LiveNow shares={data.shares} quotes={quotesOf(snap)} />
       <TopThree snap={snap} data={data} targets={targets} fresh={fresh} />
       <YourMoney snap={snap} data={data} theme={theme} />
       <SleeveCard snap={snap} data={data} />
@@ -350,6 +353,7 @@ function YourMoney({ snap, data, theme }: { snap: Snapshot; data: PhoneData; the
 
 function Tickers({ snap, theme }: { snap: Snapshot; theme: Theme }) {
   const [open, setOpen] = useState<string | null>(null)
+  const live = useLive().quotes
   const quotes = snap.prices?.quotes ?? {}
   const days = [...new Set(Object.values(quotes).map((q) => q.day))].sort()
   const last = days.at(-1)
@@ -374,7 +378,18 @@ function Tickers({ snap, theme }: { snap: Snapshot; theme: Theme }) {
                       return <span className="block text-[0.7rem]">{b.pct < 1 ? 'at its 1-yr high' : `${b.pct.toFixed(0)}% below 1-yr high`}</span>
                     })()}
                   </span>
-                  {q ? (
+                  {live[t.symbol] ? (() => {
+                    const lq = live[t.symbol]
+                    const c = lq?.change_pct ?? null
+                    return (
+                      <>
+                        <span className="font-mono" title={`Live, ${fmtTimestamp(lq?.at ?? null)}`}><span className="text-[var(--color-up)]" aria-label="Live price">● </span>{fmtMoney(lq?.price ?? null)}</span>
+                        <span className={`w-20 text-right font-mono ${gainClass(c)}`}>
+                          <span aria-hidden>{(c ?? 0) > 0 ? '▲ ' : (c ?? 0) < 0 ? '▼ ' : ''}</span>{fmtSignedPct(c)}
+                        </span>
+                      </>
+                    )
+                  })() : q ? (
                     <>
                       <span className="font-mono">{fmtMoney(q.close)}</span>
                       <span className={`w-20 text-right font-mono ${gainClass(q.change_pct)}`}>
@@ -855,6 +870,13 @@ export default function PhoneApp() {
     void askPersistent()
   }, [])
 
+  // Live prices (only with your own key): what you own first, then your watchlist, then the plan.
+  const liveSymbols = useMemo(() => [
+    ...Object.keys(data.shares).filter((k) => (data.shares[k] ?? 0) > 0),
+    ...data.watchlist.map((w) => w.symbol),
+    ...(snap?.plan.targets.map((t) => t.symbol) ?? []),
+  ], [data.shares, data.watchlist, snap])
+
   const update = useCallback((d: PhoneData) => {
     setData(d)
     if (!save(d)) setError('Couldn’t save on this phone (storage full or private mode). Save a backup.')
@@ -871,6 +893,7 @@ export default function PhoneApp() {
           {theme === 'dark' ? '▤ Ledger' : '▦ Blueprint'}
         </button>
       </header>
+      <LiveProvider symbols={liveSymbols}>
       <ResearchCtx.Provider value={research}>
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-32 pt-6">
         {error && <p role="alert" className="mb-4 border-l-4 border-[var(--color-down)] p-3 text-sm">{error}</p>}
@@ -894,6 +917,7 @@ export default function PhoneApp() {
         </p>
       </main>
       </ResearchCtx.Provider>
+      </LiveProvider>
       <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-10 border-t-2 border-[var(--ink)] bg-[var(--panel)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="mx-auto flex max-w-2xl">

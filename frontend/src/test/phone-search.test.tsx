@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchLiveQuote, LiveError, parseQuote, validKey } from '../phone/live'
+import { fetchLiveQuote, LiveError, liveValueSeries, parseQuote, validKey } from '../phone/live'
 import { includedPicks, type Snapshot, targetsFor } from '../phone/model'
 import PhoneApp from '../phone/PhoneApp'
 import { parseResearch, type Research, searchCompanies } from '../phone/research'
@@ -184,5 +184,35 @@ describe('Search tab', () => {
   it('says so when the search data is missing', async () => {
     start('#/search', { 'snapshot.json': snapshot })
     expect(await screen.findByText(/Search data isn’t available yet/)).toBeInTheDocument()
+  })
+})
+
+describe('live prices on Today', () => {
+  beforeEach(() => { localStorage.clear() })
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.location.hash = '' })
+
+  it('values your shares this minute and shows the key works', async () => {
+    localStorage.setItem('keystone.live.v1', 'abcd1234efgh5678ijkl')
+    localStorage.setItem('keystone.phone.v1', JSON.stringify({ ...empty(), shares: { VTI: 2 } }))
+    const t = Math.floor(Date.now() / 1000) - 30
+    window.location.hash = '#/today'
+    const spy = vi.fn((url: string) => {
+      if (url.startsWith('https://finnhub.io/')) return Promise.resolve(new Response(JSON.stringify({ c: 320, pc: 312.5, t }), { status: 200 }))
+      const name = url.split('/').pop() ?? ''
+      const files: Record<string, unknown> = { 'snapshot.json': snapshot, 'research.json': research }
+      return Promise.resolve(name in files ? new Response(JSON.stringify(files[name]), { status: 200 }) : new Response('', { status: 404 }))
+    })
+    vi.stubGlobal('fetch', spy)
+    render(<PhoneApp />)
+    expect(await screen.findByText('$640.00')).toBeInTheDocument() // 2 x $320 live
+    expect(screen.getByText(/\+\$15\.00/)).toBeInTheDocument() // vs 2 x $312.50 at the close
+    const live = spy.mock.calls.map((c) => c[0]).filter((u) => u.startsWith('https://finnhub.io/'))
+    expect(live[0]).toContain('symbol=VTI') // what you own is looked up first
+  })
+
+  it('builds the day line from real fetched prices only', () => {
+    const rounds = [{ at: 'a', prices: { VTI: 320 } }, { at: 'b', prices: { VTI: 321, NEW: 10 } }]
+    expect(liveValueSeries({ VTI: 2, VXUS: 1 }, { VXUS: 70 }, rounds).map((p) => p.value)).toEqual([710, 712])
+    expect(liveValueSeries({ ZZZ: 1 }, {}, rounds)).toEqual([]) // nothing priced: no line, not $0
   })
 })

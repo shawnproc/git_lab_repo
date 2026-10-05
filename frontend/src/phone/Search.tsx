@@ -1,10 +1,11 @@
 // The Search tab: look up any big US company, see how it measures up to the plan's rules, save it
 // to a watchlist, and (for a "Good fit") add it to your buy days. Verdicts are the plan's own
 // checks applied to official reports; they're not predictions and never tell you to buy or sell.
-import { type ReactNode, type SubmitEvent, useMemo, useState } from 'react'
+import { type ReactNode, type SubmitEvent, useEffect, useMemo, useState } from 'react'
 import { Card, Explain, PageHeader, StatusIcon } from '../components/ui'
 import { fmtDay, fmtMoney, fmtPct, fmtSignedPct, fmtTimestamp, gainClass } from '../format'
-import { type LiveQuote, loadKey, saveKey, useLiveQuotes, validKey } from './live'
+import { type LiveQuote, saveKey, validKey } from './live'
+import { useLive } from './LiveContext'
 import { type Company, fmtBig, type Research, searchCompanies, type Verdict, VERDICT_WORDS } from './research'
 import { MAX_INCLUDED, MAX_WATCH, type PhoneData, type WatchItem } from './store'
 
@@ -170,7 +171,8 @@ function Watchlist({ research, watch, live, open }: {
   )
 }
 
-function LiveSetup({ keyNow, setKey, device }: { keyNow: string | null; setKey: (k: string | null) => void; device: Watch['device'] }) {
+function LiveSetup({ device }: { device: Watch['device'] }) {
+  const { key: keyNow, setKey, error, checkedAt } = useLive()
   const [draft, setDraft] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   function submit(e: SubmitEvent<HTMLFormElement>) {
@@ -198,8 +200,15 @@ function LiveSetup({ keyNow, setKey, device }: { keyNow: string | null; setKey: 
         </form>
       )}
       {msg && <p role="status" className="mt-2 text-sm">{msg}</p>}
+      {keyNow && (
+        <p className="mt-2 text-sm" data-testid="live-status">
+          {error ? <span className="font-semibold text-[var(--color-down)]">✕ Not working: {error}</span>
+            : checkedAt ? <span className="text-[var(--color-up)]">✓ Working · last live price {fmtTimestamp(checkedAt)}</span>
+              : <span className="muted">Checking your key…</span>}
+        </p>
+      )}
       <Explain title="How do live prices work?">
-        <p>Without a key you see each company’s price at the last market close. With a free key from <a className="underline" href="https://finnhub.io/register" target="_blank" rel="noreferrer noopener">finnhub.io</a>, Search and your watchlist show the price right now, refreshed every minute while the app is open.</p>
+        <p>Without a key you see each company’s price at the last market close. With a free key from <a className="underline" href="https://finnhub.io/register" target="_blank" rel="noreferrer noopener">finnhub.io</a>, Today, Search and your watchlist show the price right now, refreshed every minute while the app is open (only while the market is open does the price move). Today also draws your money’s line for the day, starting when you open the app.</p>
         <p>Your key is saved in this {device}’s browser only. It isn’t in the app’s code, the public data or your backup file, so on another device, paste it in again.</p>
         <p><b>Live prices are for looking only.</b> Your buy amounts and days always use the last close, so a price moving minute to minute never changes your plan.</p>
       </Explain>
@@ -212,11 +221,10 @@ export function SearchPage({ research, error, watch, chart }: {
 }) {
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState<string | null>(null)
-  const [key, setKey] = useState<string | null>(loadKey)
+  const { quotes: live, error: liveError, setFocus } = useLive()
   const results = useMemo(() => (research ? searchCompanies(research.companies, query) : []), [research, query])
   const company = picked && research ? research.companies.find((c) => c.s === picked) : undefined
-  const liveSymbols = useMemo(() => [...new Set([...(picked ? [picked] : []), ...watch.items.map((w) => w.symbol)])], [picked, watch.items])
-  const { quotes: live, error: liveError } = useLiveQuotes(liveSymbols, key)
+  useEffect(() => { setFocus(picked); return () => { setFocus(null) } }, [picked, setFocus])
   const open = (s: string) => { setPicked(s); setQuery(''); window.scrollTo(0, 0) }
   return (
     <div className="space-y-5">
@@ -251,7 +259,7 @@ export function SearchPage({ research, error, watch, chart }: {
       {liveError && <p role="alert" className="text-sm">{liveError}</p>}
       {company && <Detail c={company} live={live[company.s]} item={watch.items.find((w) => w.symbol === company.s)} watch={watch} chart={chart(company.s)} />}
       <Watchlist research={research} watch={watch} live={live} open={open} />
-      <LiveSetup keyNow={key} setKey={setKey} device={watch.device} />
+      <LiveSetup device={watch.device} />
     </div>
   )
 }
