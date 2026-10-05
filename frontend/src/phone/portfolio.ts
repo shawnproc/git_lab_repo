@@ -169,3 +169,13 @@ export function flowsBetween(points: Point[], base: Point | null, until: Point):
   const total = points.filter((p) => (!base || p.day > base.day) && p.day <= until.day).reduce((a, p) => a + (p.flow ?? 0), 0)
   return Math.round(total * 100) / 100
 }
+
+/** How far the last close sits below the highest close of about the past year (252 sessions).
+ * Context only: "on sale vs its own past", not a prediction. Null without enough history. */
+export function belowHigh(symbol: string, history: History): { pct: number; high: number; months: number } | null {
+  const closes = (history.closes[symbol] ?? []).slice(-252).filter((c): c is number => c !== null)
+  const last = closes.at(-1)
+  if (last === undefined || closes.length < 120) return null
+  const high = Math.max(...closes)
+  return { pct: high > 0 ? Math.max(0, (1 - last / high) * 100) : 0, high, months: Math.round(closes.length / 21) }
+}

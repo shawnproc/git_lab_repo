@@ -9,8 +9,9 @@ import { LearnView } from '../pages/Learn'
 import { PlanView } from '../pages/Plan'
 import { type Theme, applyTheme, loadTheme } from '../theme'
 import { buildWall, drift, type DriftRules, type PlanTarget, splitContribution } from './logic'
-import { accountSeries, change, chartable, flowsBetween, type History, holdingValues, inRange, type Point, type Quote, RANGES, type Range, tickerSeries, valueSeries } from './portfolio'
+import { accountSeries, belowHigh, change, chartable, flowsBetween, type History, holdingValues, inRange, type Point, type Quote, RANGES, type Range, tickerSeries, valueSeries } from './portfolio'
 import { type ImportResult, parseRobinhood, type Trade } from './robinhood'
+import { buyStatus, CADENCE_WORDS, CADENCES, type Cadence, defaultSchedule, type Schedule } from './schedule'
 import { askPersistent, backupBlob, load, newId, type PhoneData, readBackup, save } from './store'
 
 // ---------------------------------------------------------------------------------------------
@@ -46,6 +47,39 @@ const localDay = () => {
 }
 const IMPORT_NOTE = 'Robinhood import'
 const tradedTotal = (trades: Trade[], sym: string) => Math.round(trades.filter((t) => t.symbol === sym).reduce((a, t) => a + t.qty, 0) * 1e6) / 1e6
+
+/** Log a buy: a stone on the wall and, optionally, the shares/dollars added to what you own.
+ * Tickers with a price track shares (estimated at the last close); others track dollars. */
+function recordBuy(data: PhoneData, allocations: { symbol: string; amount: number }[], quotes: Record<string, Quote>, addToHoldings: boolean): PhoneData {
+  const total = allocations.reduce((a, x) => a + x.amount, 0)
+  const holdings = { ...data.holdings }
+  const shares = { ...data.shares }
+  const trades = [...data.trades]
+  if (addToHoldings) {
+    for (const a of allocations) {
+      const q = quotes[a.symbol]
+      if (q && holdings[a.symbol] === undefined) {
+        const qty = Math.round((a.amount / q.close) * 1e6) / 1e6
+        shares[a.symbol] = Math.round(((shares[a.symbol] ?? 0) + qty) * 1e6) / 1e6
+        if (trades.length > 0) trades.push({ day: localDay(), symbol: a.symbol, qty, source: 'stone' })
+      } else holdings[a.symbol] = Math.round(((holdings[a.symbol] ?? 0) + a.amount) * 100) / 100
+    }
+  }
+  return {
+    ...data,
+    holdings,
+    shares,
+    trades,
+    values_as_of: addToHoldings ? new Date().toISOString() : data.values_as_of,
+    entries: [...data.entries, { id: newId(), month: localMonth(), amount: Math.round(total * 100) / 100, note: '', created_at: new Date().toISOString() }],
+  }
+}
+
+/** Local days you logged buys yourself (imported history doesn't count toward this period). */
+const buyDays = (data: PhoneData) => data.entries.filter((e) => e.note !== IMPORT_NOTE).map((e) => {
+  const d = new Date(e.created_at)
+  return `${String(d.getFullYear())}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+})
 
 const valuesOf = (snap: Snapshot, data: PhoneData) => holdingValues(data.shares, data.holdings, quotesOf(snap))
 
@@ -85,12 +119,13 @@ function Stamp({ snap }: { snap: Snapshot }) {
 
 const MOOD_LABEL = { green: 'Green', yellow: 'Yellow', red: 'Red', unknown: 'Not enough data yet' } as const
 
-function Today({ snap, data, theme }: { snap: Snapshot; data: PhoneData; theme: Theme }) {
+function Today({ snap, data, theme, update }: { snap: Snapshot; data: PhoneData; theme: Theme; update: (d: PhoneData) => void }) {
   const wall = buildWall(data.entries, localMonth())
   const m = snap.mood.result
   return (
     <div className="space-y-5">
       <Stamp snap={snap} />
+      <TodaysMove snap={snap} data={data} update={update} />
       <YourMoney snap={snap} data={data} theme={theme} />
       <Card>
         <MoodArch mood={m.mood} />
@@ -161,6 +196,97 @@ function RangeChart({ series, theme, eyebrow, label, defaultRange = '1Y' }: {
   )
 }
 
+function TodaysMove({ snap, data, update }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void }) {
+  const today = localDay()
+  const schedule = data.schedule ?? defaultSchedule(today)
+  const [editing, setEditing] = useState(data.schedule === null)
+  const [cadence, setCadence] = useState<Cadence>(schedule.cadence)
+  const [amount, setAmount] = useState(String(schedule.amount))
+  const [anchor, setAnchor] = useState(schedule.anchor)
+  const [problem, setProblem] = useState<string | null>(null)
+  const [justLogged, setJustLogged] = useState(false)
+  const quotes = quotesOf(snap)
+  const held = valuesOf(snap, data)
+  const status = buyStatus(today, schedule, buyDays(data))
+  const split = splitContribution(schedule.amount, snap.plan.targets, held)
+
+  function saveSchedule(e: SubmitEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const n = Number(amount.replace(/[$,\s]/g, ''))
+    if (!Number.isFinite(n) || n <= 0 || n > 1e6) { setProblem('Type the dollars for each buy day, like 75.'); return }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(anchor)) { setProblem('Pick your first buy day.'); return }
+    setProblem(null)
+    const next: Schedule = { cadence, amount: Math.round(n * 100) / 100, anchor }
+    update({ ...data, schedule: next })
+    setEditing(false)
+  }
+
+  function bought() {
+    update(recordBuy(data, split.allocations, quotes, true))
+    setJustLogged(true)
+  }
+
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-3">
+        <div className="eyebrow">Today’s move</div>
+        {!editing && <button type="button" className="muted text-xs underline" onClick={() => { setEditing(true) }}>Change schedule</button>}
+      </div>
+      {editing ? (
+        <form onSubmit={saveSchedule} className="mt-2 space-y-3 text-sm">
+          <p>Set your buy days to match your paydays. Steady buying on a schedule is the habit that grows money; guessing the “right day” usually doesn’t.</p>
+          <label className="block">How often
+            <select className="input mt-1 w-full" value={cadence} onChange={(e) => { setCadence(e.target.value as Cadence) }} aria-label="How often you buy">
+              {CADENCES.map((c) => <option key={c} value={c}>{CADENCE_WORDS[c]}</option>)}
+            </select>
+          </label>
+          {(cadence === 'weekly' || cadence === 'biweekly') && (
+            <label className="block">First buy day (sets the weekday)
+              <input className="input mt-1 w-full" type="date" value={anchor} onChange={(e) => { setAnchor(e.target.value) }} aria-label="First buy day" />
+            </label>
+          )}
+          <label className="block">Dollars each buy day
+            <div className="mt-1 flex items-center gap-1"><span className="font-mono text-lg">$</span>
+              <input className="input font-mono" inputMode="decimal" value={amount} onChange={(e) => { setAmount(e.target.value) }} aria-label="Dollars each buy day" /></div>
+          </label>
+          {problem && <p role="alert" className="text-[var(--color-down)]">{problem}</p>}
+          <button className="btn w-full">Save my schedule</button>
+        </form>
+      ) : status.due ? (
+        <div className="mt-1">
+          <div className="serif text-4xl font-bold">Buy day</div>
+          <p className="mt-1 text-sm">Put in <b className="font-mono">{fmtMoney(schedule.amount)}</b> today. {CADENCE_WORDS[schedule.cadence]}; this one has been due since {fmtMonthDay(status.since)}.</p>
+          <ol className="slip mt-3 space-y-2 px-4 pb-3">
+            {split.allocations.map((a) => {
+              const q = quotes[a.symbol]
+              return (
+                <li key={a.symbol} className="flex items-end text-sm">
+                  <span>Buy <b className="font-mono">{a.symbol}</b>{q && <span className="muted text-xs"> ≈ {fmtShares(a.amount / q.close)} sh</span>}</span>
+                  <span className="leader" aria-hidden />
+                  <b className="font-mono">{fmtMoney(a.amount)}</b>
+                </li>
+              )
+            })}
+          </ol>
+          <p className="muted mt-2 text-xs">In your broker app, buy each one <b>in dollars</b>. Money goes to whatever is furthest below its target, so you never have to sell.</p>
+          <button type="button" className="btn mt-3 w-full" onClick={bought}>I bought these. Lay the stone</button>
+        </div>
+      ) : (
+        <div className="mt-1">
+          <div className="serif text-3xl font-bold">{justLogged ? '✓ Stone laid' : '✓ You’re done for now'}</div>
+          <p className="mt-1 text-sm">Next buy day: <b>{fmtMonthDay(status.next)}</b> ({status.days_to_next === 1 ? 'tomorrow' : `in ${String(status.days_to_next)} days`}), {fmtMoney(schedule.amount)}.</p>
+          <p className="muted mt-2 text-xs">Nothing to do today. Prices wiggle every day; your plan works on months and years. Checking in is fine, and acting on a wiggle is how people lose money.</p>
+        </div>
+      )}
+      <Explain title="Why a schedule instead of “the best day”?">
+        <p>Nobody can reliably tell which day is cheapest. People who try often wait too long and miss the market’s best days, which tend to come right after its worst ones.</p>
+        <p>Buying the same amount on a steady schedule (called <b>dollar-cost averaging</b>) automatically buys more shares when prices are low and fewer when they’re high.</p>
+        <p>The amount you put in matters far more than the day you pick: {fmtMoney(schedule.amount)} {schedule.cadence === 'weekly' ? 'every week' : schedule.cadence === 'biweekly' ? 'every 2 weeks' : schedule.cadence === 'semimonthly' ? 'twice a month' : 'a month'} is about <b>{fmtMoney(schedule.amount * ({ weekly: 52, biweekly: 26, semimonthly: 24, monthly: 12 } as const)[schedule.cadence], false)}</b> a year of new money.</p>
+      </Explain>
+    </Card>
+  )
+}
+
 function YourMoney({ snap, data, theme }: { snap: Snapshot; data: PhoneData; theme: Theme }) {
   const history = historyOf(snap)
   const real = data.trades.length > 0
@@ -225,7 +351,14 @@ function Tickers({ snap, theme }: { snap: Snapshot; theme: Theme }) {
                 <button type="button" className="flex w-full items-center gap-3 py-1 text-left" aria-expanded={open === t.symbol}
                   disabled={!q} onClick={() => { setOpen(open === t.symbol ? null : t.symbol) }}>
                   <span className="w-14 font-mono font-bold">{t.symbol}</span>
-                  <span className="muted min-w-0 flex-1 truncate text-xs">{t.name}</span>
+                  <span className="min-w-0 flex-1 text-xs">
+                    <span className="muted block truncate">{t.name}</span>
+                    {(() => {
+                      const b = belowHigh(t.symbol, historyOf(snap))
+                      if (!b) return null
+                      return <span className="block text-[0.7rem]">{b.pct < 1 ? 'at its 1-yr high' : `${b.pct.toFixed(0)}% below 1-yr high`}</span>
+                    })()}
+                  </span>
                   {q ? (
                     <>
                       <span className="font-mono">{fmtMoney(q.close)}</span>
@@ -248,6 +381,7 @@ function Tickers({ snap, theme }: { snap: Snapshot; theme: Theme }) {
       <Explain>
         <p><b>Last close</b> is the price when the market closed{last ? ` on ${fmtMonthDay(last)}` : ''}. The <b>%</b> is the change from the day before: ▲ up, ▼ down.</p>
         <p><b>Tap a ticker</b> to see its chart.</p>
+        <p><b>“% below its 1-year high”</b> shows how far today’s price is from its highest close in about a year. It’s context, like a sale tag: a stock can be cheaper for a good reason. It never changes your buy amounts.</p>
         <p>Prices wiggle every day. That’s normal and <b>not a reason to buy or sell</b>. Your plan works on months and years, not days.</p>
         <p className="muted text-xs">Source: {snap.prices ? `${snap.prices.source}, fetched ${fmtTimestamp(snap.prices.fetched_at)}` : 'not available yet'}. Your own values come from your broker app.</p>
       </Explain>
@@ -430,30 +564,9 @@ function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; updat
 
   function layStone() {
     if (!split) return
-    const total = split.allocations.reduce((a, x) => a + x.amount, 0)
-    const holdings = { ...data.holdings }
-    const shares = { ...data.shares }
-    const trades = [...data.trades]
-    if (addToHoldings) {
-      for (const a of split.allocations) {
-        const q = quotes[a.symbol]
-        // Tickers with a price track shares (estimated at the last close); others track dollars.
-        if (q && holdings[a.symbol] === undefined) {
-          const qty = Math.round((a.amount / q.close) * 1e6) / 1e6
-          shares[a.symbol] = Math.round(((shares[a.symbol] ?? 0) + qty) * 1e6) / 1e6
-          if (trades.length > 0) trades.push({ day: localDay(), symbol: a.symbol, qty, source: 'stone' })
-        }
-        else holdings[a.symbol] = Math.round(((holdings[a.symbol] ?? 0) + a.amount) * 100) / 100
-      }
-    }
-    update({
-      ...data,
-      holdings,
-      shares,
-      trades,
-      values_as_of: addToHoldings ? new Date().toISOString() : data.values_as_of,
-      entries: [...data.entries, { id: newId(), month: localMonth(), amount: Math.round(total * 100) / 100, note: '', created_at: new Date().toISOString() }],
-    })
+    const next = recordBuy(data, split.allocations, quotes, addToHoldings)
+    update(next)
+    const { holdings, shares } = next
     if (addToHoldings) {
       const updated = { ...values }
       for (const [k, v] of Object.entries(holdings)) if (!priced(k)) updated[k] = String(v)
@@ -773,7 +886,7 @@ export default function PhoneApp() {
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-32 pt-6">
         {error && <p role="alert" className="mb-4 border-l-4 border-[var(--color-down)] p-3 text-sm">{error}</p>}
         {!snap && !error && <p className="muted">Loading today’s data…</p>}
-        {snap && tab === 'today' && <Today snap={snap} data={data} theme={theme} />}
+        {snap && tab === 'today' && <Today snap={snap} data={data} theme={theme} update={update} />}
         {snap && tab === 'invest' && <Invest snap={snap} data={data} update={update} />}
         {snap && tab === 'plan' && <PlanPage snap={snap} data={data} />}
         {tab === 'wall' && <WallPage data={data} update={update} />}
@@ -782,6 +895,7 @@ export default function PhoneApp() {
         )}
         <p className="muted mt-10 text-center text-xs">
           Educational tool, not financial advice. Your holdings and wall stay on this phone. {snap && `Data updated ${fmtTimestamp(snap.generated_at)}.`}
+          <br />App version {fmtTimestamp(__APP_BUILT__)}
         </p>
       </main>
       <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-10 border-t-2 border-[var(--ink)] bg-[var(--panel)]"

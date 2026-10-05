@@ -174,6 +174,32 @@ describe('iPhone app', () => {
     expect(await screen.findByText(/doesn’t look like a Robinhood account activity report/)).toBeInTheDocument()
   })
 
+  it('Today’s move: set a schedule, see the buy-day split, log it, then a countdown', async () => {
+    start('#/today')
+    fireEvent.change(await screen.findByLabelText('Dollars each buy day'), { target: { value: '100' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save my schedule' }))
+    expect(await screen.findByText('Buy day')).toBeInTheDocument()
+    // No holdings yet, so the split follows the targets: VTI 45% of $100.
+    expect(screen.getByText('$45.00')).toBeInTheDocument()
+    expect(screen.getByText('$2,400')).toBeInTheDocument() // a year of new money, twice a month
+    fireEvent.click(screen.getByRole('button', { name: 'I bought these. Lay the stone' }))
+    expect(await screen.findByText('✓ Stone laid')).toBeInTheDocument()
+    expect(screen.getByText(/Next buy day:/)).toBeInTheDocument()
+    const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { schedule: { amount: number; cadence: string }; entries: unknown[]; shares: Record<string, number> }
+    expect(saved.schedule).toMatchObject({ amount: 100, cadence: 'semimonthly' })
+    expect(saved.entries).toHaveLength(1)
+    expect(saved.shares.VTI).toBeCloseTo(45 / 312.5, 5) // estimated at the last close
+  })
+
+  it('shows how far each ticker is below its 1-year high, as context', async () => {
+    const days = Array.from({ length: 130 }, (_, i) => `2026-${String(4 + Math.floor(i / 28)).padStart(2, '0')}-${String(1 + (i % 28)).padStart(2, '0')}`)
+    const vti = days.map((_, i) => (i === 10 ? 400 : 300))
+    const prices = snapshot.prices
+    if (!prices) throw new Error('fixture has prices')
+    start('#/today', { ...snapshot, prices: { ...prices, history: { days, closes: { VTI: vti } } } })
+    expect(await screen.findByText('25% below 1-yr high')).toBeInTheDocument()
+  })
+
   it('wall page works and offers backup', async () => {
     start('#/wall')
     expect(await screen.findByText(/Your wall is empty/)).toBeInTheDocument()

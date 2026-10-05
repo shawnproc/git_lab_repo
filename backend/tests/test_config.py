@@ -17,7 +17,7 @@ def test_defaults_match_spec() -> None:
     c = AppConfig()
     assert (c.plan.core_pct, c.plan.stocks_pct) == (60, 40)
     assert [(f.symbol, f.weight_pct) for f in c.plan.core_funds] == [("VTI", 45), ("VXUS", 15)]
-    assert c.plan.max_stocks == 6
+    assert c.plan.max_stocks == 10
     assert len(c.plan.candidates) == 40
     assert (c.drift.max_abs_pp, c.drift.max_relative_pct) == (5, 25)
     assert c.contribution.fractional_shares is True
