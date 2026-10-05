@@ -92,6 +92,10 @@ def plan(state: StateDep, db: DbDep, _p: PrincipalDep) -> PlanOut:
     v = state.planner.plan(db)
     names = {f.symbol: f.name or f.symbol for f in state.config.plan.core_funds}
     names |= {r.symbol: r.company for r in v.screen}
+    for t in v.targets:  # included Search picks
+        c = state.research.company(t.symbol) if t.symbol not in names else None
+        if c is not None:
+            names[t.symbol] = str(c.get("n", t.symbol))
     return PlanOut(
         _targets_out(v.targets, v.basis_value, names), v.screen, v.fundamentals, v.basis_value,
         v.basis_is_reference,

@@ -206,3 +206,30 @@ describe('Learn', () => {
     expect(screen.getByText('ETF (exchange-traded fund)')).toBeInTheDocument()
   })
 })
+
+describe('Search (PC)', () => {
+  const data = {
+    schema: 1, generated_at: '2026-10-02T22:40:00+00:00', source: 'SEC', min_revenue_usd: 1e9,
+    companies: [{ s: 'AAPL', n: 'Apple Inc.', v: 'fit', h: 'It passes every quality check.', rev: 416e9, close: 255.5, chg: 1.2, day: '2026-10-02', dy: 0.4 }],
+  }
+  const status = { source: 'https://x', fetched_at: '2026-10-05T15:00:00Z', generated_at: data.generated_at, stale: false, reason: '', last_error: '' }
+  const row = { symbol: 'AAPL', added_at: '2026-10-05T15:00:00Z', added_price: 255.5, verdict_at_add: 'fit', include: false }
+
+  it('searches, saves to the PC watchlist through the API with CSRF, and includes it', async () => {
+    const calls: { url: string; init?: RequestInit }[] = []
+    start('#/search', {
+      'GET /api/research': { status, data }, 'POST /api/research/refresh': { status, data },
+      'GET /api/watchlist': [], 'PUT /api/watchlist/AAPL': [row], 'PATCH /api/watchlist/AAPL': [{ ...row, include: true }],
+    }, calls)
+    fireEvent.change(await screen.findByLabelText('Company or ticker'), { target: { value: 'apple' } })
+    fireEvent.click(await screen.findByRole('button', { name: /AAPL/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add AAPL to my watchlist' }))
+    fireEvent.click(await screen.findByLabelText('Include in my buy days'))
+    await waitFor(() => { expect(calls.some((c) => c.init?.method === 'PATCH')).toBe(true) })
+    const put = calls.find((c) => c.init?.method === 'PUT')
+    expect(put?.url).toBe('/api/watchlist/AAPL')
+    expect((put?.init?.headers as Record<string, string>)['x-csrf-token']).toBe('tok')
+    expect(put?.init?.body).toBe('{}') // the price and verdict come from the server's copy
+    expect(await screen.findByLabelText('Include in my buy days')).toBeChecked()
+  })
+})

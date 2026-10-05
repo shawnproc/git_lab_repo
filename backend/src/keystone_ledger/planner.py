@@ -25,10 +25,13 @@ from keystone_ledger.core.plan import (
 )
 from keystone_ledger.core.screen import Candidate, ScreenResult, screen
 from keystone_ledger.data.fundamentals import FundamentalsService, FundamentalsStatus
+from keystone_ledger.data.research_feed import ResearchFeed
 from keystone_ledger.data.service import Freshness, MarketDataService
-from keystone_ledger.db.models import Holding, SecurityEvent
+from keystone_ledger.db.models import Holding, SecurityEvent, WatchItem
 
 VIX_SERIES = "VIXCLS"
+MAX_INCLUDED = 5  # Search picks in buy days, same as the phone
+SEARCH_WHY = "Your pick from Search. It passes every quality check."
 
 
 @dataclass(frozen=True)
@@ -77,11 +80,31 @@ def run_screen(
 
 class Planner:
     def __init__(
-        self, cfg: AppConfig, market: MarketDataService, fundamentals: FundamentalsService
+        self,
+        cfg: AppConfig,
+        market: MarketDataService,
+        fundamentals: FundamentalsService,
+        research: ResearchFeed | None = None,
     ) -> None:
         self.cfg = cfg
         self.market = market
         self.fundamentals = fundamentals
+        self.research = research
+
+    # --- Search picks -------------------------------------------------------------------------
+
+    def included(self, s: Session) -> list[str]:
+        """Watchlist picks switched on for buy days that are a "Good fit" in the current search
+        data. Without search data, none: never on an old verdict."""
+        if self.research is None or self.research.data() is None:
+            return []
+        rows = s.scalars(select(WatchItem).where(WatchItem.include).order_by(WatchItem.symbol))
+        out = []
+        for w in rows:
+            c = self.research.company(w.symbol)
+            if c is not None and c.get("v") == "fit":
+                out.append(w.symbol)
+        return out[:MAX_INCLUDED]
 
     # --- holdings -----------------------------------------------------------------------------
 
@@ -103,7 +126,7 @@ class Planner:
         core = [f.symbol for f in self.cfg.plan.core_funds]
         picked = [r.symbol for r in self.screen() if r.picked]
         held = [h[0] for h in self.holdings(s)]
-        return list(dict.fromkeys([*core, *picked, *held]))
+        return list(dict.fromkeys([*core, *picked, *self.included(s), *held]))
 
     def chartable(self, s: Session) -> set[str]:
         """Symbols the app may fetch on demand: bounded, so a GET can't trigger arbitrary
@@ -113,6 +136,7 @@ class Planner:
             *self.cfg.plan.candidates,
             *(f.symbol for f in self.cfg.plan.core_funds),
             *(h[0] for h in self.holdings(s)),
+            *(w for w in s.scalars(select(WatchItem.symbol))),
         }
 
     # --- market ---------------------------------------------------------------------------------
@@ -150,7 +174,11 @@ class Planner:
 
     def plan(self, s: Session) -> PlanView:
         results = self.screen()
-        targets = build_targets(self.cfg.plan, [(r.symbol, r.why) for r in results if r.picked])
+        targets = build_targets(
+            self.cfg.plan,
+            [(r.symbol, r.why) for r in results if r.picked],
+            extra=[(sym, SEARCH_WHY) for sym in self.included(s)],
+        )
         quotes, _ = self.quotes([h[0] for h in self.holdings(s)])
         summary = value_portfolio(self.holdings(s), quotes)
         use_ref = summary.value <= 0

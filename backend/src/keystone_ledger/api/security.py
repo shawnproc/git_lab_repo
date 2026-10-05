@@ -26,7 +26,8 @@ CSP = "; ".join(
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data:",
         "font-src 'self'",
-        "connect-src 'self'",
+        # finnhub.io: optional live prices, only with the owner's own key (frontend phone/live.ts)
+        "connect-src 'self' https://finnhub.io",
         "object-src 'none'",
         "base-uri 'none'",
         "form-action 'self'",

@@ -16,7 +16,7 @@ import { BackupCard, BackupReminder, CompanyStatus, FreshnessBar, OverlapCard, S
 import { freshnessOf, type Snapshot, skipFor, targetsFor } from './model'
 import type { Freshness, RefreshStatus } from './stale'
 import { fetchResearch, type Research } from './research'
-import { SearchPage } from './Search'
+import { phoneWatch, SearchPage } from './Search'
 import { askPersistent, load, newId, type PhoneData, save } from './store'
 
 // ---------------------------------------------------------------------------------------------
@@ -878,7 +878,7 @@ export default function PhoneApp() {
         {snap && tab === 'today' && <Today snap={snap} data={data} theme={theme} update={update} fresh={freshnessOf(snap, status, now)} now={now} />}
         {snap && tab === 'invest' && <Invest snap={snap} data={data} update={update} fresh={freshnessOf(snap, status, now)} />}
         {tab === 'search' && (
-          <SearchPage research={research} error={researchError} data={data} update={update}
+          <SearchPage research={research} error={researchError} watch={phoneWatch(data, update)}
             chart={(sym) => (snap && historyOf(snap).closes[sym]
               ? <RangeChart series={tickerSeries(sym, historyOf(snap))} theme={theme} eyebrow={`${sym} price`} label={`Line chart of ${sym}'s closing price`} />
               : null)} />

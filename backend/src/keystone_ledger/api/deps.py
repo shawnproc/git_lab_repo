@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from keystone_ledger.config import AppConfig
 from keystone_ledger.core.auth import AuthService
 from keystone_ledger.data.fundamentals import FundamentalsService
+from keystone_ledger.data.research_feed import ResearchFeed
 from keystone_ledger.data.service import MarketDataService
 from keystone_ledger.db.models import AuthSession, User
 from keystone_ledger.db.session import transaction
@@ -32,6 +33,7 @@ class AppState:
     market: MarketDataService
     fundamentals: FundamentalsService
     planner: Planner
+    research: ResearchFeed
 
 
 def get_state(request: Request) -> AppState:

@@ -83,6 +83,10 @@ for every month you bought.
   paste it in Search → Live prices. Search and your watchlist then show the price right now,
   refreshed every minute while the app is open. The key stays on that phone only (not in the
   code, the public data or backups). Buy amounts always use the last close.
+- **On the PC app too:** the **Search** tab in the PC app uses the same daily search data
+  (downloaded from your GitHub Pages site and kept on the PC). The PC's watchlist is saved in the
+  PC app's own database, separate from the phone's, and included Good fits join the PC's plan and
+  buy-day split the same way.
 
 ### Your buy-day routine (about 2 minutes)
 Open **Today**. The **Today's move** card shows whether today is a buy day (you set your schedule

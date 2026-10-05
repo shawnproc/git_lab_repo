@@ -7,6 +7,7 @@ import { Home } from './pages/Home'
 import { Learn } from './pages/Learn'
 import { Money } from './pages/Money'
 import { Plan } from './pages/Plan'
+import { Search } from './pages/Search'
 import { SessionContext } from './session'
 import { type Theme, applyTheme, loadTheme } from './theme'
 
@@ -14,6 +15,7 @@ type View = 'loading' | 'offline' | 'setup' | 'login' | 'app'
 
 export const PAGES = [
   { id: 'home', label: 'Home' },
+  { id: 'search', label: 'Search' },
   { id: 'plan', label: 'My Plan' },
   { id: 'money', label: 'My Money' },
   { id: 'charts', label: 'Charts' },
@@ -113,6 +115,7 @@ export default function App() {
           {view === 'setup' && <SetupForm onAuthed={accept} />}
           {view === 'login' && <LoginForm onAuthed={accept} />}
           {view === 'app' && page === 'home' && <Home />}
+          {view === 'app' && page === 'search' && <Search />}
           {view === 'app' && page === 'plan' && <Plan />}
           {view === 'app' && page === 'money' && <Money />}
           {view === 'app' && page === 'charts' && <Charts theme={theme} />}

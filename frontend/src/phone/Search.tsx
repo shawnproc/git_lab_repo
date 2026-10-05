@@ -8,6 +8,27 @@ import { type LiveQuote, loadKey, saveKey, useLiveQuotes, validKey } from './liv
 import { type Company, fmtBig, type Research, searchCompanies, type Verdict, VERDICT_WORDS } from './research'
 import { MAX_INCLUDED, MAX_WATCH, type PhoneData, type WatchItem } from './store'
 
+/** Where the watchlist lives: the phone's storage, or the PC app's database. */
+export interface Watch {
+  items: WatchItem[]
+  add: (c: Company) => void
+  remove: (symbol: string) => void
+  setInclude: (symbol: string, on: boolean) => void
+  device: 'phone' | 'computer'
+}
+
+/** The phone's watchlist, kept in its PhoneData. */
+export function phoneWatch(data: PhoneData, update: (d: PhoneData) => void): Watch {
+  const set = (watchlist: WatchItem[]) => { update({ ...data, watchlist }) }
+  return {
+    items: data.watchlist,
+    add: (c) => { set([...data.watchlist, { symbol: c.s, added_at: new Date().toISOString(), added_price: c.close, verdict_at_add: c.v, include: false }]) },
+    remove: (sym) => { set(data.watchlist.filter((w) => w.symbol !== sym)) },
+    setInclude: (sym, on) => { set(data.watchlist.map((w) => (w.symbol === sym ? { ...w, include: on } : w))) },
+    device: 'phone',
+  }
+}
+
 const MARK: Record<Verdict, string> = { fit: '✓', pricey: '◐', no: '✕', unknown: '?', fund: '▦' }
 const TONE: Record<Verdict, string> = {
   fit: 'border-[var(--color-up)] text-[var(--color-up)]',
@@ -44,14 +65,14 @@ function Price({ c, live }: { c: Company; live?: LiveQuote }) {
   )
 }
 
-function Detail({ c, live, item, data, update, chart }: {
-  c: Company; live?: LiveQuote; item?: WatchItem; data: PhoneData; update: (d: PhoneData) => void; chart?: ReactNode
+function Detail({ c, live, item, watch, chart }: {
+  c: Company; live?: LiveQuote; item?: WatchItem; watch: Watch; chart?: ReactNode
 }) {
   const [msg, setMsg] = useState<string | null>(null)
-  const watchlist = data.watchlist
+  const watchlist = watch.items
   function add() {
     if (watchlist.length >= MAX_WATCH) { setMsg(`Your watchlist is full (${String(MAX_WATCH)}). Remove one first.`); return }
-    update({ ...data, watchlist: [...watchlist, { symbol: c.s, added_at: new Date().toISOString(), added_price: c.close, verdict_at_add: c.v, include: false }] })
+    watch.add(c)
     setMsg('✓ Saved to your watchlist, below.')
   }
   return (
@@ -96,21 +117,18 @@ function Detail({ c, live, item, data, update, chart }: {
   )
 }
 
-function Watchlist({ research, data, update, live, open }: {
-  research: Research | null; data: PhoneData; update: (d: PhoneData) => void; live: Record<string, LiveQuote>; open: (s: string) => void
+function Watchlist({ research, watch, live, open }: {
+  research: Research | null; watch: Watch; live: Record<string, LiveQuote>; open: (s: string) => void
 }) {
   const by = useMemo(() => new Map((research?.companies ?? []).map((c) => [c.s, c])), [research])
-  const included = data.watchlist.filter((w) => w.include).length
-  const set = (sym: string, patch: Partial<WatchItem> | null) => {
-    update({ ...data, watchlist: patch === null ? data.watchlist.filter((w) => w.symbol !== sym) : data.watchlist.map((w) => (w.symbol === sym ? { ...w, ...patch } : w)) })
-  }
-  if (data.watchlist.length === 0) {
+  const included = watch.items.filter((w) => w.include).length
+  if (watch.items.length === 0) {
     return <Card title="My watchlist"><p className="muted text-sm">Search a company and tap <b>Add to my watchlist</b> to follow it here.</p></Card>
   }
   return (
     <Card title="My watchlist">
       <ul className="divide-y divide-[var(--line)]">
-        {data.watchlist.map((w) => {
+        {watch.items.map((w) => {
           const c = by.get(w.symbol)
           const now = live[w.symbol]?.price ?? c?.close ?? null
           const since = now !== null && w.added_price ? (now / w.added_price - 1) * 100 : null
@@ -133,10 +151,10 @@ function Watchlist({ research, data, update, live, open }: {
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                 <label className={`flex items-center gap-2 text-xs ${canInclude ? '' : 'muted'}`}>
                   <input type="checkbox" checked={w.include && canInclude} disabled={!canInclude || (!w.include && included >= MAX_INCLUDED)}
-                    onChange={(e) => { set(w.symbol, { include: e.target.checked }) }} />
+                    onChange={(e) => { watch.setInclude(w.symbol, e.target.checked) }} />
                   Include in my buy days
                 </label>
-                <button type="button" className="btn btn-ghost px-2 py-1 text-xs" onClick={() => { set(w.symbol, null) }} aria-label={`Remove ${w.symbol} from my watchlist`}>Remove</button>
+                <button type="button" className="btn btn-ghost px-2 py-1 text-xs" onClick={() => { watch.remove(w.symbol) }} aria-label={`Remove ${w.symbol} from my watchlist`}>Remove</button>
               </div>
               {w.include && !canInclude && c && <p className="mt-1 text-xs">Paused: it’s no longer a “Good fit”, so it gets no new money. It comes back by itself if that changes.</p>}
             </li>
@@ -152,14 +170,14 @@ function Watchlist({ research, data, update, live, open }: {
   )
 }
 
-function LiveSetup({ keyNow, setKey }: { keyNow: string | null; setKey: (k: string | null) => void }) {
+function LiveSetup({ keyNow, setKey, device }: { keyNow: string | null; setKey: (k: string | null) => void; device: Watch['device'] }) {
   const [draft, setDraft] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   function submit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
     const k = draft.trim()
     if (!validKey(k)) { setMsg('That doesn’t look like a Finnhub key (letters and numbers only).'); return }
-    if (!saveKey(k)) { setMsg('Couldn’t save it on this phone (private mode?).'); return }
+    if (!saveKey(k)) { setMsg(`Couldn’t save it on this ${device} (private mode?).`); return }
     setKey(k)
     setDraft('')
     setMsg('✓ Live prices are on.')
@@ -182,22 +200,22 @@ function LiveSetup({ keyNow, setKey }: { keyNow: string | null; setKey: (k: stri
       {msg && <p role="status" className="mt-2 text-sm">{msg}</p>}
       <Explain title="How do live prices work?">
         <p>Without a key you see each company’s price at the last market close. With a free key from <a className="underline" href="https://finnhub.io/register" target="_blank" rel="noreferrer noopener">finnhub.io</a>, Search and your watchlist show the price right now, refreshed every minute while the app is open.</p>
-        <p>Your key is saved on this phone only. It isn’t in the app’s code, the public data or your backup file, so if you switch phones, paste it in again.</p>
+        <p>Your key is saved in this {device}’s browser only. It isn’t in the app’s code, the public data or your backup file, so on another device, paste it in again.</p>
         <p><b>Live prices are for looking only.</b> Your buy amounts and days always use the last close, so a price moving minute to minute never changes your plan.</p>
       </Explain>
     </Card>
   )
 }
 
-export function SearchPage({ research, error, data, update, chart }: {
-  research: Research | null; error: string | null; data: PhoneData; update: (d: PhoneData) => void; chart: (symbol: string) => ReactNode
+export function SearchPage({ research, error, watch, chart }: {
+  research: Research | null; error: string | null; watch: Watch; chart: (symbol: string) => ReactNode
 }) {
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState<string | null>(null)
   const [key, setKey] = useState<string | null>(loadKey)
   const results = useMemo(() => (research ? searchCompanies(research.companies, query) : []), [research, query])
   const company = picked && research ? research.companies.find((c) => c.s === picked) : undefined
-  const liveSymbols = useMemo(() => [...new Set([...(picked ? [picked] : []), ...data.watchlist.map((w) => w.symbol)])], [picked, data.watchlist])
+  const liveSymbols = useMemo(() => [...new Set([...(picked ? [picked] : []), ...watch.items.map((w) => w.symbol)])], [picked, watch.items])
   const { quotes: live, error: liveError } = useLiveQuotes(liveSymbols, key)
   const open = (s: string) => { setPicked(s); setQuery(''); window.scrollTo(0, 0) }
   return (
@@ -231,9 +249,9 @@ export function SearchPage({ research, error, data, update, chart }: {
         )}
       </Card>
       {liveError && <p role="alert" className="text-sm">{liveError}</p>}
-      {company && <Detail c={company} live={live[company.s]} item={data.watchlist.find((w) => w.symbol === company.s)} data={data} update={update} chart={chart(company.s)} />}
-      <Watchlist research={research} data={data} update={update} live={live} open={open} />
-      <LiveSetup keyNow={key} setKey={setKey} />
+      {company && <Detail c={company} live={live[company.s]} item={watch.items.find((w) => w.symbol === company.s)} watch={watch} chart={chart(company.s)} />}
+      <Watchlist research={research} watch={watch} live={live} open={open} />
+      <LiveSetup keyNow={key} setKey={setKey} device={watch.device} />
     </div>
   )
 }

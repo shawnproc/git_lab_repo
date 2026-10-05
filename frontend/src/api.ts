@@ -295,6 +295,30 @@ export async function request<T>(method: string, path: string, body?: unknown): 
   return parsed as T
 }
 
+export interface ResearchStatus {
+  source: string
+  fetched_at: string | null
+  generated_at: string | null
+  stale: boolean
+  reason: string
+  last_error: string
+}
+
+export interface ResearchResponse {
+  status: ResearchStatus
+  data: unknown // validated by phone/research.ts parseResearch before use
+}
+
+export interface WatchRow {
+  symbol: string
+  added_at: string
+  added_price: number | null
+  verdict_at_add: string
+  include: boolean
+}
+
+const sym = (s: string) => encodeURIComponent(s)
+
 export const api = {
   authStatus: () => request<AuthStatus>('GET', '/api/auth/status'),
   setup: (setup_token: string, username: string, password: string) =>
@@ -316,4 +340,10 @@ export const api = {
   logContribution: (month: string, amount: number, note = '') =>
     request<WallData>('POST', '/api/contributions', { month, amount, note, this_month: localMonth() }),
   deleteContribution: (id: number) => request<undefined>('DELETE', `/api/contributions/${String(id)}`),
+  research: () => request<ResearchResponse>('GET', '/api/research'),
+  refreshResearch: () => request<ResearchResponse>('POST', '/api/research/refresh'),
+  watchlist: () => request<WatchRow[]>('GET', '/api/watchlist'),
+  watchAdd: (symbol: string) => request<WatchRow[]>('PUT', `/api/watchlist/${sym(symbol)}`, {}),
+  watchInclude: (symbol: string, include: boolean) => request<WatchRow[]>('PATCH', `/api/watchlist/${sym(symbol)}`, { include }),
+  watchRemove: (symbol: string) => request<undefined>('DELETE', `/api/watchlist/${sym(symbol)}`),
 }
