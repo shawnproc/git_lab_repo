@@ -77,11 +77,28 @@ export async function fetchLiveQuote(symbol: string, key: string, signal?: Abort
   return parseQuote(await res.json(), Date.now())
 }
 
+/** One full refresh: every symbol's price at that minute (for the "today" line). */
+export interface LiveRound {
+  at: string
+  prices: Record<string, number>
+}
+
+export interface LiveState {
+  quotes: Record<string, LiveQuote>
+  error: string | null
+  checkedAt: string | null // last time a lookup succeeded
+  rounds: LiveRound[] // since the app was opened (memory only, never saved)
+}
+
+const MAX_ROUNDS = 480 // a full trading day of minutes, plus margin
+
 /** Live quotes for up to MAX_LIVE symbols, refreshed each minute while the app is on screen. */
-export function useLiveQuotes(symbols: string[], key: string | null): { quotes: Record<string, LiveQuote>; error: string | null } {
+export function useLiveQuotes(symbols: string[], key: string | null): LiveState {
   const [quotes, setQuotes] = useState<Record<string, LiveQuote>>({})
   const [error, setError] = useState<string | null>(null)
-  const wanted = symbols.filter((s) => SYMBOL.test(s)).slice(0, MAX_LIVE).join(',')
+  const [checkedAt, setCheckedAt] = useState<string | null>(null)
+  const [rounds, setRounds] = useState<LiveRound[]>([])
+  const wanted = [...new Set(symbols.filter((s) => SYMBOL.test(s)))].slice(0, MAX_LIVE).join(',')
   const busy = useRef(false)
   useEffect(() => {
     if (!key || !wanted) return
@@ -92,13 +109,21 @@ export function useLiveQuotes(symbols: string[], key: string | null): { quotes: 
     async function round() {
       if (busy.current || document.hidden) return
       busy.current = true
+      const prices: Record<string, number> = {}
       try {
         for (const s of list) {
           if (ctrl.signal.aborted) return
           const q = await fetchLiveQuote(s, key ?? '', ctrl.signal)
-          if (q) setQuotes((old) => ({ ...old, [s]: q }))
+          if (q) {
+            prices[s] = q.price
+            setQuotes((old) => ({ ...old, [s]: q }))
+          }
           setError(null)
+          setCheckedAt(new Date().toISOString())
           await sleep(SPACING_MS)
+        }
+        if (Object.keys(prices).length > 0) {
+          setRounds((old) => [...old, { at: new Date().toISOString(), prices }].slice(-MAX_ROUNDS))
         }
       } catch (e) {
         if (!ctrl.signal.aborted) setError(e instanceof Error ? e.message : 'Live prices are unavailable.')
@@ -118,5 +143,23 @@ export function useLiveQuotes(symbols: string[], key: string | null): { quotes: 
       busy.current = false
     }
   }, [wanted, key])
-  return { quotes, error }
+  return { quotes, error, checkedAt, rounds }
+}
+
+/** Your shares' value at each live round: shares x that minute's price, or the last close for a
+ * symbol with no live price yet. Pure. Null when nothing you own has a price. */
+export function liveValueSeries(shares: Record<string, number>, closes: Record<string, number>, rounds: LiveRound[]): { at: string; value: number }[] {
+  const out: { at: string; value: number }[] = []
+  const latest: Record<string, number> = { ...closes }
+  for (const r of rounds) {
+    Object.assign(latest, r.prices)
+    let v = 0
+    let any = false
+    for (const [sym, n] of Object.entries(shares)) {
+      const p = latest[sym]
+      if (p !== undefined && n > 0) { v += n * p; any = true }
+    }
+    if (any) out.push({ at: r.at, value: Math.round(v * 100) / 100 })
+  }
+  return out
 }

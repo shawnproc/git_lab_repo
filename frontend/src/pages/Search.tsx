@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, ApiError, type WatchRow } from '../api'
 import { ErrorText } from '../components/ui'
 import { parseResearch, type Research } from '../phone/research'
+import { LiveProvider } from '../phone/LiveContext'
 import { SearchPage, type Watch } from '../phone/Search'
 import { useSession } from '../session'
 import { errorMessage } from '../useApi'
@@ -45,11 +46,14 @@ export function Search() {
     setInclude: (s, on) => { api.watchInclude(s, on).then(setItems, fail) },
   }), [items, fail])
 
+  const liveSymbols = useMemo(() => items.map((w) => w.symbol), [items])
   return (
     <div>
       {problem && <div className="mb-4"><ErrorText>{problem}</ErrorText></div>}
       <div className="mx-auto max-w-2xl">
-        <SearchPage research={research} error={error} watch={watch} chart={() => null} />
+        <LiveProvider symbols={liveSymbols}>
+          <SearchPage research={research} error={error} watch={watch} chart={() => null} />
+        </LiveProvider>
       </div>
     </div>
   )
