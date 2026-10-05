@@ -7,6 +7,7 @@ export interface Quote {
   prev_close: number | null
   change_pct: number | null
   day: string
+  dividend_yield_pct?: number | null // last 12 months of dividends / price
 }
 
 export interface History {

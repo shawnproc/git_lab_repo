@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from keystone_ledger.core.auth import Clock, utcnow
 from keystone_ledger.core.screen import (
     DURATION_TAGS,
+    EPS_TAGS,
     INSTANT_TAGS,
     Facts,
     duration_period,
@@ -34,7 +35,7 @@ class FundamentalsProvider(Protocol):
 
     def fetch_tickers(self) -> dict[str, TickerInfo]: ...
 
-    def fetch_frame(self, tag: str, period: str) -> dict[int, FrameValue]: ...
+    def fetch_frame(self, tag: str, period: str, unit: str = "USD") -> dict[int, FrameValue]: ...
 
 
 def sec_ticker(symbol: str) -> str:
@@ -108,12 +109,13 @@ class FundamentalsService:
             with self._sf() as s:
                 ciks = set(self.cik_map(s, symbols).values())
             for year in self.years():
-                for tags, period in (
-                    (DURATION_TAGS, duration_period(year)),
-                    (INSTANT_TAGS, instant_period(year)),
+                for tags, period, unit in (
+                    (DURATION_TAGS, duration_period(year), "USD"),
+                    (INSTANT_TAGS, instant_period(year), "USD"),
+                    (EPS_TAGS, duration_period(year), "USD-per-shares"),
                 ):
                     for tag in tags:
-                        frame = self.provider.fetch_frame(tag, period)
+                        frame = self.provider.fetch_frame(tag, period, unit)
                         rows += [
                             {
                                 "cik": cik, "tag": tag, "period": period, "value": fv.value,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Literal
@@ -21,22 +21,52 @@ class Target:
     why: str
 
 
-def build_targets(plan: PlanConfig, picks: Sequence[tuple[str, str]]) -> list[Target]:
-    """Core funds at their configured weights; picked stocks split `stocks_pct` equally.
+def sleeve_weights(total: float, weights: Sequence[float], cap: float) -> list[float]:
+    """Split `total` in proportion to `weights`, no share above `cap`. A capped share's excess is
+    shared among the uncapped ones; only if every share is capped is anything left over."""
+    n = len(weights)
+    out = [0.0] * n
+    free = [i for i in range(n) if weights[i] > 0]
+    remaining = total
+    while free and remaining > 1e-12:
+        wsum = sum(weights[i] for i in free)
+        trial = {i: remaining * weights[i] / wsum for i in free}
+        over = [i for i in free if out[i] + trial[i] > cap + 1e-12]
+        if not over:
+            for i in free:
+                out[i] += trial[i]
+            remaining = 0.0
+            break
+        for i in over:
+            remaining -= cap - out[i]
+            out[i] = cap
+        free = [i for i in free if i not in over]
+    return out
 
-    Each stock is capped at `max_single_stock_pct`. Whatever the cap (or an empty screen) leaves
-    unallocated goes to the core funds in proportion to their weights, so targets always sum
-    to 100%.
+
+def build_targets(
+    plan: PlanConfig,
+    picks: Sequence[tuple[str, str]],
+    weights: Sequence[float] | None = None,
+    stocks_pct: float | None = None,
+) -> list[Target]:
+    """Core funds share `100 - stocks_pct` in their configured proportions; picked stocks share
+    `stocks_pct` by `weights` (equal when omitted), each capped at `max_single_stock_pct`.
+
+    Whatever the cap (or an empty screen) leaves unallocated goes to the core funds in proportion
+    to their weights, so targets always sum to 100%.
     """
     stocks = list(picks)[: plan.max_stocks]
-    per_stock = min(plan.stocks_pct / len(stocks), plan.max_single_stock_pct) if stocks else 0.0
-    leftover = plan.stocks_pct - per_stock * len(stocks)
+    sleeve = plan.stocks_pct if stocks_pct is None else stocks_pct
+    w = list(weights)[: len(stocks)] if weights is not None else [1.0] * len(stocks)
+    shares = sleeve_weights(sleeve, w, plan.max_single_stock_pct)
+    core_total = 100.0 - sum(shares)
     # Config guarantees core_pct > 0 (1-3 funds, each with a positive weight).
     out = [
-        Target(f.symbol, "core", f.weight_pct + leftover * f.weight_pct / plan.core_pct, f.why)
+        Target(f.symbol, "core", core_total * f.weight_pct / plan.core_pct, f.why)
         for f in plan.core_funds
     ]
-    out += [Target(sym, "stock", per_stock, why) for sym, why in stocks]
+    out += [Target(sym, "stock", pct, why) for (sym, why), pct in zip(stocks, shares, strict=True)]
     return out
 
 
@@ -188,8 +218,12 @@ def split_contribution(
     prices: Mapping[str, float],
     fractional: bool,
     total_value: float,
+    skip: Collection[str] = (),
 ) -> ContributionPlan:
     """Send new money to whatever is furthest below target. Never suggests selling.
+
+    `skip` (price-flagged or replaced holdings) gets no new money this time; it goes to the next
+    most-behind holdings instead. If everything would be skipped, nothing is.
 
     `total_value` includes off-plan holdings (they dilute every target but get no new money).
     Fractional: dollars are exact. Whole shares: floor each, then spend what's left one share at
@@ -197,6 +231,8 @@ def split_contribution(
     """
     if amount <= 0 or not targets:
         return ContributionPlan(amount, [], amount, "")
+    eligible = [t for t in targets if t.symbol not in skip] or list(targets)
+    targets = eligible
     new_total = total_value + amount
     deficits = {
         t.symbol: max(0.0, t.target_pct / 100 * new_total - current_values.get(t.symbol, 0.0))

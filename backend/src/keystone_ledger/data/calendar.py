@@ -39,6 +39,15 @@ class MarketCalendar:
         s = self._cal.date_to_session(pd.Timestamp(d), "next")
         return pd.Timestamp(self._cal.previous_session(s)).date()
 
+    def sessions_with_close(self, start: date, end: date) -> list[tuple[date, datetime]]:
+        """Sessions in [start, end] with each one's closing time (UTC; early closes included)."""
+        out: list[tuple[date, datetime]] = []
+        for d in self.sessions_between(start, end):
+            close = pd.Timestamp(self._cal.session_close(pd.Timestamp(d)))
+            close = close.tz_localize("UTC") if close.tzinfo is None else close.tz_convert("UTC")
+            out.append((d, close.to_pydatetime()))
+        return out
+
     def sessions_between(self, start: date, end: date) -> list[date]:
         """Sessions in [start, end] inclusive."""
         if end < start:

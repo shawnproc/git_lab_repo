@@ -46,8 +46,11 @@ class PortfolioView:
     freshness: dict[str, Freshness]
 
 
-def run_screen(cfg: AppConfig, fundamentals: FundamentalsService) -> list[ScreenResult]:
-    """Screen every configured candidate using cached SEC facts (no provider calls)."""
+def run_screen(
+    cfg: AppConfig, fundamentals: FundamentalsService, keep: list[str] | None = None
+) -> list[ScreenResult]:
+    """Screen every configured candidate using cached SEC facts (no provider calls).
+    `keep`: earlier picks that stay picked unless replaced (see core/watch.py)."""
     cands = cfg.plan.candidates
     symbols = list(cands)
     facts = fundamentals.facts(symbols)
@@ -68,6 +71,7 @@ def run_screen(cfg: AppConfig, fundamentals: FundamentalsService) -> list[Screen
         cfg.screen,
         cfg.plan.max_stocks,
         cfg.plan.max_per_sector,
+        keep=keep or (),
     )
 
 

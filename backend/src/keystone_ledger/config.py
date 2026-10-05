@@ -119,6 +119,12 @@ class ScreenConfig(_Frozen):
     max_debt_to_operating_income: float = Field(default=3.0, gt=0, le=50)
     # A candidate may have at most this many checks "unavailable" and still qualify.
     max_unavailable: int = Field(default=1, ge=0, le=2)
+    # Replace a pick (new money stops; nothing is sold) only after this many failed quarterly
+    # check-ins in a row. One failure = "on watch". At least 2, so one bad report can't churn it.
+    replace_after_failed_quarters: int = Field(default=2, ge=2, le=8)
+    # Price check: flag when today's P/E is above this multiple of its own 5-year median P/E.
+    # A flag only sends new buy-day money elsewhere for now; it never sells or blocks the plan.
+    valuation_pe_multiple: float = Field(default=1.5, ge=1.1, le=5.0)
 
 
 class PlanConfig(_Frozen):

@@ -53,6 +53,24 @@ The file is read on your phone and never uploaded. You get your real shares, you
 history on the **Today** chart (with "you added $X · the market moved $Y"), and a stone on your wall
 for every month you bought.
 
+### What the app watches for you
+- **3 to put new money in** (Today): the companies to favor right now, ranked by business
+  strength from SEC reports, which way each is heading since last quarter, a price check, and how
+  far behind target each is. It changes as companies grow or weaken, never on daily price wiggles.
+- **Your picks vs. just VTI** (Today): your individual stocks against a pretend account that put
+  the same dollars into VTI on the same days. If the index keeps winning, pick a bigger fund share.
+- **Your mix** (Plan): 60/40, 70/30 or 80/20 between the index funds and the companies.
+- **Company check-ins** (Plan): one failed quarterly check = on watch; two in a row = replaced
+  (new money stops; the app never tells you to sell). A company priced well above its own usual
+  price-to-earnings level gets no new money until that cools off.
+- **What VTI already owns** (Plan): your real stake in each company, direct plus inside VTI.
+- **Never old numbers as new:** Today shows "Prices as of …". If prices are more than one market
+  day old, or the daily update failed its safety checks, buy amounts are hidden until fresh data
+  arrives. The daily job checks every snapshot before publishing and keeps the last good one if
+  anything looks wrong.
+- **Locked backup** (Wall): one file sealed with your passphrase (AES-256). Save it to iCloud
+  Drive or a USB thumb drive. Today reminds you every 30 days.
+
 ### Your buy-day routine (about 2 minutes)
 Open **Today**. The **Today's move** card shows whether today is a buy day (you set your schedule
 once: weekly, every 2 weeks, twice a month or monthly, and the dollars each time). On a buy day it

@@ -20,8 +20,11 @@ The full build plan and phase status are in `docs/PLAN.md`. Read it before start
   workflow. The snapshot is PUBLIC: market mood, plan picks, Learn links, never personal data.
   Holdings and the wall live only in the phone's local storage (`frontend/src/phone/store.ts`,
   validated on load and restore). Phone math in `phone/logic.ts` mirrors the Python engine, and
-  the tests use the same numbers; change both together. `phone/portfolio.ts` (shares x closes,
-  chart ranges) is phone-only and pure.
+  the tests use the same numbers; change both together (incl. `buildTargets`/`sleeveWeights`
+  and the `skip` list). `phone/portfolio.ts`, `sleeve.ts`, `stale.ts` are phone-only and pure.
+  The snapshot is validated (`tools/validate_snapshot.py`) before it's published; never bypass it.
+  Mood never feeds buy amounts or days. Backups are encrypted (`phone/backup.ts`); keep restores
+  verify-then-confirm.
 - **Security first.** Bind 127.0.0.1. No CORS middleware (same-origin only). Every state-changing
   authenticated endpoint uses `CsrfPrincipalDep`. Use Pydantic models with `extra="forbid"` for
   every request body. ORM or parameterized SQL only. No `eval`/`exec`/`pickle` on fetched data.

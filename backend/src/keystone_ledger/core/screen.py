@@ -6,7 +6,7 @@ compute from filed data is "unavailable", never estimated.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -25,6 +25,8 @@ CAPEX_TAGS = ("PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquirePr
 DEBT_TAGS = ("LongTermDebt", "LongTermDebtNoncurrent")
 
 DURATION_TAGS = (*REVENUE_TAGS, *OPERATING_INCOME_TAGS, *CFO_TAGS, *CAPEX_TAGS)
+# Earnings per share (dollars per share, a different SEC unit), for the price check.
+EPS_TAGS = ("EarningsPerShareDiluted", "EarningsPerShareBasic")
 INSTANT_TAGS = DEBT_TAGS
 
 Status = Literal["pass", "fail", "unavailable"]
@@ -281,11 +283,14 @@ def screen(
     cfg: ScreenConfig,
     max_stocks: int,
     max_per_sector: int,
+    keep: Sequence[str] = (),
 ) -> list[ScreenResult]:
-    """Run checks for every candidate, then pick the top `max_stocks` qualifiers.
+    """Run checks for every candidate, then pick up to `max_stocks`.
 
+    `keep` (last time's picks that aren't up for replacement) stay picked first, even if another
+    company now ranks higher, so the plan doesn't churn. Open slots go to qualifiers ranked by
+    `score` (ties by symbol), at most `max_per_sector` per sector.
     Qualify: no failed check and at most `cfg.max_unavailable` unavailable ones.
-    Rank by `score`, ties by symbol; at most `max_per_sector` picks per sector.
     """
     results: list[ScreenResult] = []
     for c in candidates:
@@ -306,7 +311,16 @@ def screen(
     )
     picked: set[str] = set()
     per_sector: dict[str, int] = {}
+    by_symbol = {r.symbol: r for r in results}
+    for sym in keep:
+        r = by_symbol.get(sym)
+        if r is None or sym in picked or len(picked) >= max_stocks:
+            continue
+        picked.add(sym)
+        per_sector[r.sector] = per_sector.get(r.sector, 0) + 1
     for r in ranked:
+        if r.symbol in picked:
+            continue
         if len(picked) >= max_stocks:
             break
         if per_sector.get(r.sector, 0) >= max_per_sector:
