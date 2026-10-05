@@ -249,8 +249,8 @@ export function BackupReminder({ data, now }: { data: PhoneData; now: Date }) {
   const age = data.last_backup_at ? (now.getTime() - Date.parse(data.last_backup_at)) / 86_400_000 : Infinity
   if (age < BACKUP_EVERY_DAYS) return null
   return (
-    <a href="#/wall" className="block border-l-4 border-[var(--color-warn)] bg-[var(--panel)] p-3 text-sm">
-      <b>Time for a backup.</b> {data.last_backup_at ? `Your last one was ${fmtTimestamp(data.last_backup_at)}.` : 'You haven’t saved one yet.'} If this phone is lost, a backup is the only copy of your holdings and wall. Tap to save one →
+    <a href="#/invest" className="block border-l-4 border-[var(--color-warn)] bg-[var(--panel)] p-3 text-sm">
+      <b>Time for a backup.</b> {data.last_backup_at ? `Your last one was ${fmtTimestamp(data.last_backup_at)}.` : 'You haven’t saved one yet.'} If this phone is lost, a backup is the only copy of your holdings, history and watchlist. Tap Invest to save one →
     </a>
   )
 }
@@ -344,7 +344,7 @@ export function BackupCard({ data, update }: { data: PhoneData; update: (d: Phon
   const p = pending?.preview
   return (
     <Card title="Back up everything (locked)">
-      <p className="text-sm">Your holdings, history, wall and schedule live <b>only on this phone</b>. Save a locked copy: one file sealed with your passphrase. Keep it in <b>iCloud Drive</b>, on a <b>USB thumb drive</b> (plug it in, then “Save to Files” → the drive), or both.</p>
+      <p className="text-sm">Your holdings, history, watchlist and schedule live <b>only on this device</b>. Save a locked copy: one file sealed with your passphrase. Keep it in <b>iCloud Drive</b>, on a <b>USB thumb drive</b> (plug it in, then “Save to Files” → the drive), or both.</p>
       <form onSubmit={(e) => void save(e)} className="mt-3 space-y-2">
         <input className="input w-full" type="password" autoComplete="new-password" placeholder="Passphrase (10+ characters)" value={pass} onChange={(e) => { setPass(e.target.value) }} aria-label="Backup passphrase" />
         <input className="input w-full" type="password" autoComplete="new-password" placeholder="Type it again" value={pass2} onChange={(e) => { setPass2(e.target.value) }} aria-label="Repeat backup passphrase" />
@@ -364,8 +364,8 @@ export function BackupCard({ data, update }: { data: PhoneData; update: (d: Phon
         )}
         {p && (
           <div className="mt-3 space-y-2 text-sm" role="group" aria-label="Backup contents">
-            <p>This backup{pending.savedAt ? ` from ${fmtTimestamp(pending.savedAt)}` : ''} has {String(Object.keys(p.shares).length + Object.keys(p.holdings).length)} holdings, {String(p.trades.length)} trades and {String(p.entries.length)} stones. It checked out: nothing in it was changed.</p>
-            {hasData(data) && <p className="font-semibold text-[var(--color-warn)]">Restoring replaces everything on this phone now ({String(data.entries.length)} stones, {String(Object.keys(data.shares).length + Object.keys(data.holdings).length)} holdings).</p>}
+            <p>This backup{pending.savedAt ? ` from ${fmtTimestamp(pending.savedAt)}` : ''} has {String(Object.keys(p.shares).length + Object.keys(p.holdings).length)} holdings, {String(p.trades.length)} trades and {String(p.watchlist.length)} watchlist companies. It checked out: nothing in it was changed.</p>
+            {hasData(data) && <p className="font-semibold text-[var(--color-warn)]">Restoring replaces everything on this device now ({String(Object.keys(data.shares).length + Object.keys(data.holdings).length)} holdings, {String(data.watchlist.length)} watchlist companies).</p>}
             <div className="flex gap-2">
               <button type="button" className="btn flex-1" onClick={replace}>{hasData(data) ? 'Replace everything on this phone' : 'Restore this backup'}</button>
               <button type="button" className="btn btn-ghost" onClick={() => { setPending(null) }}>Cancel</button>

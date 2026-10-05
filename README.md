@@ -2,6 +2,9 @@
 
 A personal long-term investing dashboard that runs on your own computer:
 
+(The iPhone/website app has tabs Today, Invest, Search, Plan and Learn; the stone wall was removed
+there. The older PC app below still has it.)
+
 - **Home:** today's market mood (🟢 🟡 🔴) and how your money is doing.
 - **My Plan:** what to own (a steady core of index funds plus up to 10 strong companies), how much
   of each, and why.
@@ -20,7 +23,7 @@ A personal long-term investing dashboard that runs on your own computer:
 
 The iPhone app is a web app you add to your Home Screen. Every weekday evening GitHub refreshes
 the market mood and your plan by itself (free), so your PC doesn't need to be on. Your holdings
-and your wall are saved **only on your phone**.
+and your watchlist are saved **only on your device**.
 
 ### One-time setup (about 10 minutes, on a computer)
 1. **Merge this work into `main`.** On GitHub, open the pull request for branch
@@ -50,8 +53,7 @@ and your wall are saved **only on your phone**.
    shares → **Use these**.
 
 The file is read on your phone and never uploaded. You get your real shares, your real account
-history on the **Today** chart (with "you added $X · the market moved $Y"), and a stone on your wall
-for every month you bought.
+history on the **Today** chart (with "you added $X · the market moved $Y").
 
 ### What the app watches for you
 - **3 to put new money in** (Today): the companies to favor right now, ranked by business
@@ -68,7 +70,7 @@ for every month you bought.
   day old, or the daily update failed its safety checks, buy amounts are hidden until fresh data
   arrives. The daily job checks every snapshot before publishing and keeps the last good one if
   anything looks wrong.
-- **Locked backup** (Wall): one file sealed with your passphrase (AES-256). Save it to iCloud
+- **Locked backup** (Invest tab): one file sealed with your passphrase (AES-256). Save it to iCloud
   Drive or a USB thumb drive. Today reminds you every 30 days.
 - **Search** (Search tab): type a company or ticker (Apple, AAPL) to see its price, yearly sales,
   dividend, a price check and the plan's 5 quality checks, with a verdict: **Good fit**, **Good
@@ -92,13 +94,13 @@ for every month you bought.
 Open **Today**. The **Today's move** card shows whether today is a buy day (you set your schedule
 once: weekly, every 2 weeks, twice a month or monthly, and the dollars each time). On a buy day it
 lists exactly what to buy, in dollars, across the funds and up to 10 companies. Buy those in your
-broker app, then tap **I bought these. Lay the stone**. On other days it shows the countdown to
+broker app, then tap **I bought these**. On other days it shows the countdown to
 your next buy day: nothing to do. Each ticker also shows how far it is below its 1-year high, as
 context only (it never changes the amounts).
 
 Or, the long way: **Invest** tab → type how many **shares** you own of each (from your broker app; only when they
-change) → **Split it** → buy those dollar amounts in your broker app → **Lay the stone**. The
-**Today** tab then shows your money as a chart (1W to 1Y), priced at each weekday's close. Every few months: **Wall** tab → **Save a backup**
+change) → **Split it** → buy those dollar amounts in your broker app → **I invested $…**. The
+**Today** tab then shows your money as a chart (1W to 1Y), priced at each weekday's close. Every few months: **Invest** tab → **Save a backup**
 → save it to Files or iCloud Drive.
 
 > Changing your plan (the 60/40 split, the company list, and so on): edit

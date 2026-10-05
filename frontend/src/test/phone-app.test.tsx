@@ -58,9 +58,10 @@ describe('iPhone app', () => {
   it('Today shows the mood and a big invest button, with no login', async () => {
     start('#/today')
     expect(await screen.findByText('Green')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Invest this month/ })).toHaveAttribute('href', '#/invest')
+    expect(screen.queryAllByText(/\bstones?\b/i)).toHaveLength(0) // no stones or wall anywhere
     expect(screen.queryByText(/Sign in/)).not.toBeInTheDocument()
-    for (const label of ['Today', 'Invest', 'Plan', 'Wall', 'Learn']) expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Wall' })).not.toBeInTheDocument()
+    for (const label of ['Today', 'Invest', 'Search', 'Plan', 'Learn']) expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
   })
 
   it('warns loudly when the snapshot is stale', async () => {
@@ -69,7 +70,7 @@ describe('iPhone app', () => {
     expect(screen.getByText(/fred: HTTP 503/)).toBeInTheDocument()
   })
 
-  it('invest flow: values -> split -> lay the stone, all saved on the phone only', async () => {
+  it('invest flow: values -> split -> log it, all saved on the phone only', async () => {
     const fetchSpy = vi.fn(() => Promise.resolve(new Response(JSON.stringify(snapshot), { status: 200 })))
     window.location.hash = '#/invest'
     vi.stubGlobal('fetch', fetchSpy)
@@ -81,8 +82,8 @@ describe('iPhone app', () => {
     expect(screen.getByText('✓ Saved on this phone')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Split it' }))
     expect(screen.getAllByText(/^Buy/).length).toBeGreaterThan(0)
-    fireEvent.click(screen.getByRole('button', { name: /I invested \$500.00\. Lay the stone/ }))
-    expect(await screen.findByText(/Stone laid for/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'I invested $500.00' }))
+    expect(await screen.findByText(/✓ Logged/)).toBeInTheDocument()
     const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { holdings: Record<string, number>; shares: Record<string, number>; entries: unknown[] }
     expect(saved.entries).toHaveLength(1)
     // VTI was already over its target, so the money went to the underweight holdings instead.
@@ -143,7 +144,7 @@ describe('iPhone app', () => {
     expect(screen.getByRole('button', { name: /MSFT/ })).toBeDisabled() // no price, no chart
   })
 
-  it('imports a Robinhood report: preview, then real shares, history and stones', async () => {
+  it('imports a Robinhood report: preview, then real shares and history', async () => {
     const csv = [
       '"Activity Date","Process Date","Settle Date","Instrument","Description","Trans Code","Quantity","Price","Amount"',
       '"10/1/2026","10/1/2026","10/2/2026","VXUS","Vanguard Total Intl","Buy","5","$71.00","($355.00)"',
@@ -156,12 +157,12 @@ describe('iPhone app', () => {
     expect(await screen.findByText(/Found 2 buys and 0 sells/)).toBeInTheDocument()
     expect(screen.getByText('≈ $625.00')).toBeInTheDocument() // 2 VTI x $312.50
     fireEvent.click(screen.getByRole('button', { name: 'Use these' }))
-    expect(await screen.findByText(/Imported 2 holdings and 2 months of stones/)).toBeInTheDocument()
+    expect(await screen.findByText(/Imported 2 holdings\. Check the share counts/)).toBeInTheDocument()
     expect(screen.getByLabelText('VTI shares')).toHaveValue('2')
     const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { shares: Record<string, number>; trades: unknown[]; entries: { note: string }[] }
     expect(saved.shares).toEqual({ VTI: 2, VXUS: 5 })
     expect(saved.trades).toHaveLength(2)
-    expect(saved.entries.map((e) => e.note)).toEqual(['Robinhood import', 'Robinhood import'])
+    expect(saved.entries).toEqual([]) // the report's trades are the history; no stones
     // Today now shows the real history line: 0 before Sep 30, then 2 VTI, then 2 VTI + 5 VXUS.
     fireEvent.click(screen.getByRole('link', { name: 'Today' }))
     expect(await screen.findByText('$975.00')).toBeInTheDocument() // 2 x 312.50 + 5 x 70
@@ -185,8 +186,8 @@ describe('iPhone app', () => {
     // No holdings yet, so the split follows the targets: VTI 45% of $100.
     expect(screen.getByText('$45.00')).toBeInTheDocument()
     expect(screen.getByText('$2,400')).toBeInTheDocument() // a year of new money, twice a month
-    fireEvent.click(screen.getByRole('button', { name: 'I bought these. Lay the stone' }))
-    expect(await screen.findByText('✓ Stone laid')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'I bought these' }))
+    expect(await screen.findByText('✓ Logged. Nice work.')).toBeInTheDocument()
     expect(screen.getByText(/Next buy day:/)).toBeInTheDocument()
     const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { schedule: { amount: number; cadence: string }; entries: unknown[]; shares: Record<string, number> }
     expect(saved.schedule).toMatchObject({ amount: 100, cadence: 'semimonthly' })
@@ -267,14 +268,14 @@ describe('iPhone app', () => {
     const { empty } = await import('../phone/store')
     const file = await encryptBackup({ ...empty(), shares: { VTI: 3 } }, 'correct horse battery', new Date(), 100_000)
     localStorage.setItem('keystone.phone.v1', JSON.stringify({ version: 1, holdings: {}, shares: { VXUS: 1 }, values_as_of: null, entries: [] }))
-    start('#/wall')
+    start('#/invest')
     fireEvent.change(await screen.findByLabelText('Backup file to restore'), { target: { files: [new File([file], 'b.json')] } })
     fireEvent.change(await screen.findByLabelText('Passphrase to open the backup'), { target: { value: 'wrong passphrase!' } })
     fireEvent.click(screen.getByRole('button', { name: 'Open backup' }))
     expect(await screen.findByText(/Wrong passphrase/)).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Passphrase to open the backup'), { target: { value: 'correct horse battery' } })
     fireEvent.click(screen.getByRole('button', { name: 'Open backup' }))
-    expect(await screen.findByText(/Restoring replaces everything on this phone/)).toBeInTheDocument()
+    expect(await screen.findByText(/Restoring replaces everything on this device/)).toBeInTheDocument()
     // Nothing changed yet: the phone still has its own data until you confirm.
     expect((JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { shares: Record<string, number> }).shares).toEqual({ VXUS: 1 })
     fireEvent.click(screen.getByRole('button', { name: 'Replace everything on this phone' }))
@@ -310,12 +311,9 @@ describe('iPhone app', () => {
     expect(within(card).getByText(/Your picks are ahead by \$80\.00/)).toBeInTheDocument()
   })
 
-  it('wall page works and offers backup', async () => {
+  it('the old wall link opens Invest, which offers the backup', async () => {
     start('#/wall')
-    expect(await screen.findByText(/Your wall is empty/)).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Amount you invested in dollars'), { target: { value: '250' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Lay a stone' }))
-    expect(await screen.findByText(/This month's stone is laid/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save locked backup' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Save locked backup' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Invest' })).toHaveAttribute('aria-current', 'page')
   })
 })

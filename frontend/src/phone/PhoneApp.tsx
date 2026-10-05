@@ -1,14 +1,13 @@
 import { type ChangeEvent, createContext, type SubmitEvent, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { localMonth, type Plan as PlanData } from '../api'
 import { KeystoneLogo, MoodArch, SpiritLevel } from '../components/brand'
-import { GrowingWall, WallStats } from '../components/GrowingWall'
 import { Card, Explain, PageHeader } from '../components/ui'
-import { fmtDay, fmtMoney, fmtMonth, fmtPct, fmtShares, fmtSignedMoney, fmtSignedPct, fmtTimestamp, gainClass } from '../format'
+import { fmtDay, fmtMoney, fmtPct, fmtShares, fmtSignedMoney, fmtSignedPct, fmtTimestamp, gainClass } from '../format'
 import { ValueChart } from '../components/ValueChart'
 import { LearnView } from '../pages/Learn'
 import { PlanView } from '../pages/Plan'
 import { type Theme, applyTheme, loadTheme } from '../theme'
-import { buildWall, drift, splitContribution } from './logic'
+import { drift, splitContribution } from './logic'
 import { accountSeries, belowHigh, change, chartable, flowsBetween, type History, holdingValues, inRange, type Point, type Quote, RANGES, type Range, tickerSeries, valueSeries } from './portfolio'
 import { type ImportResult, parseRobinhood, type Trade } from './robinhood'
 import { buyStatus, CADENCE_WORDS, CADENCES, type Cadence, defaultSchedule, type Schedule } from './schedule'
@@ -42,7 +41,7 @@ const localDay = () => {
 const IMPORT_NOTE = 'Robinhood import'
 const tradedTotal = (trades: Trade[], sym: string) => Math.round(trades.filter((t) => t.symbol === sym).reduce((a, t) => a + t.qty, 0) * 1e6) / 1e6
 
-/** Log a buy: a stone on the wall and, optionally, the shares/dollars added to what you own.
+/** Log a buy (for your buy-day status) and, optionally, the shares/dollars added to what you own.
  * Tickers with a price track shares (estimated at the last close); others track dollars. */
 function recordBuy(data: PhoneData, allocations: { symbol: string; amount: number }[], quotes: Record<string, Quote>, addToHoldings: boolean): PhoneData {
   const total = allocations.reduce((a, x) => a + x.amount, 0)
@@ -122,7 +121,6 @@ function Stamp({ snap }: { snap: Snapshot }) {
 const MOOD_LABEL = { green: 'Green', yellow: 'Yellow', red: 'Red', unknown: 'Not enough data yet' } as const
 
 function Today({ snap, data, theme, update, fresh, now }: { snap: Snapshot; data: PhoneData; theme: Theme; update: (d: PhoneData) => void; fresh: Freshness; now: Date }) {
-  const wall = buildWall(data.entries, localMonth())
   const m = snap.mood.result
   const targets = useTargets(snap, data)
   return (
@@ -150,11 +148,6 @@ function Today({ snap, data, theme, update, fresh, now }: { snap: Snapshot; data
         </Explain>
       </Card>
       <Tickers snap={snap} theme={theme} />
-      <Card title="This month">
-        <p className="serif text-lg">{wall.message}</p>
-        <a href="#/invest" className="btn mt-4 w-full">{wall.this_month_laid ? 'Add more this month' : 'Invest this month'} →</a>
-        <div className="mt-5"><GrowingWall wall={wall} maxYears={2} /></div>
-      </Card>
     </div>
   )
 }
@@ -286,12 +279,12 @@ function TodaysMove({ snap, data, update, fresh }: { snap: Snapshot; data: Phone
             })}
           </ol>
           <p className="muted mt-2 text-xs">In your broker app, buy each one <b>in dollars</b>. Money goes to whatever is furthest below its target, so you never have to sell.{skip.size > 0 && ` Skipped for now (price well above its usual level): ${[...skip].join(', ')}.`}</p>
-          <button type="button" className="btn mt-3 w-full" onClick={bought}>I bought these. Lay the stone</button>
+          <button type="button" className="btn mt-3 w-full" onClick={bought}>I bought these</button>
           </>)}
         </div>
       ) : (
         <div className="mt-1">
-          <div className="serif text-3xl font-bold">{justLogged ? '✓ Stone laid' : '✓ You’re done for now'}</div>
+          <div className="serif text-3xl font-bold">{justLogged ? '✓ Logged. Nice work.' : '✓ You’re done for now'}</div>
           <p className="mt-1 text-sm">Next buy day: <b>{fmtMonthDay(status.next)}</b> ({status.days_to_next === 1 ? 'tomorrow' : `in ${String(status.days_to_next)} days`}), {fmtMoney(schedule.amount)}.</p>
           <p className="muted mt-2 text-xs">Nothing to do today. Prices wiggle every day; your plan works on months and years. Checking in is fine, and acting on a wiggle is how people lose money.</p>
         </div>
@@ -428,7 +421,6 @@ function RobinhoodImport({ snap, data, update }: { snap: Snapshot; data: PhoneDa
   const [preview, setPreview] = useState<ImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<string | null>(null)
-  const [toWall, setToWall] = useState(true)
   const quotes = quotesOf(snap)
 
   async function read(e: ChangeEvent<HTMLInputElement>) {
@@ -450,21 +442,11 @@ function RobinhoodImport({ snap, data, update }: { snap: Snapshot; data: PhoneDa
     // Imported tickers take the report's share counts; a ticker you sold out of drops off.
     const shares = { ...Object.fromEntries(Object.entries(data.shares).filter(([s]) => !imported.has(s))), ...preview.shares }
     const holdings = Object.fromEntries(Object.entries(data.holdings).filter(([s]) => !(s in preview.shares)))
-    let entries = data.entries
-    let added = 0
-    if (toWall) {
-      // Replace stones from an earlier import; never double up a month you logged yourself.
-      entries = entries.filter((x) => x.note !== IMPORT_NOTE)
-      const mine = new Set(entries.map((x) => x.month))
-      for (const m of preview.months) {
-        if (mine.has(m.month) || m.amount <= 0) continue
-        entries = [...entries, { id: newId(), month: m.month, amount: m.amount, note: IMPORT_NOTE, created_at: new Date().toISOString() }]
-        added++
-      }
-    }
+    // Drop buy-log entries from earlier imports (the report's trades are the history now).
+    const entries = data.entries.filter((x) => x.note !== IMPORT_NOTE)
     // A fresh full report replaces any earlier imported history.
     update({ ...data, shares, holdings, trades: preview.trades, entries, values_as_of: new Date().toISOString() })
-    setDone(`✓ Imported ${String(Object.keys(preview.shares).length)} holdings${toWall ? ` and ${String(added)} months of stones` : ''}. Check the share counts against your Robinhood app.`)
+    setDone(`✓ Imported ${String(Object.keys(preview.shares).length)} holdings. Check the share counts against your Robinhood app.`)
     setPreview(null)
   }
 
@@ -490,12 +472,6 @@ function RobinhoodImport({ snap, data, update }: { snap: Snapshot; data: PhoneDa
           </ul>
           {preview.warnings.length > 0 && (
             <ul className="stamp space-y-1 p-3 text-xs">{preview.warnings.map((w) => <li key={w}>⚠️ {w}</li>)}</ul>
-          )}
-          {preview.months.length > 0 && (
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={toWall} onChange={(e) => { setToWall(e.target.checked) }} />
-              Lay a stone for each of the {String(preview.months.length)} months you bought (skips months you already logged)
-            </label>
           )}
           <div className="flex gap-2">
             <button type="button" className="btn flex-1" onClick={use}>Use these</button>
@@ -596,7 +572,7 @@ function Invest({ snap, data, update, fresh }: { snap: Snapshot; data: PhoneData
     setSplit(splitContribution(n, targets, held, skipFor(targets)))
   }
 
-  function layStone() {
+  function logBuy() {
     if (!split) return
     const next = recordBuy(data, split.allocations, quotes, addToHoldings)
     update(next)
@@ -720,23 +696,24 @@ function Invest({ snap, data, update, fresh }: { snap: Snapshot; data: PhoneData
         </Explain>
       </Card>
 
-      <Card title="3 · Lay this month’s stone">
+      <Card title="3 · Log what you bought">
         {!split ? (
           <p className="muted text-sm">Split your money above, buy it in your broker app, then come back here.</p>
         ) : laid ? (
-          <p className="font-semibold text-[var(--color-up)]">✓ Stone laid for {fmtMonth(`${localMonth()}-01`)}. <a className="underline" href="#/wall">See your wall</a>.</p>
+          <p className="font-semibold text-[var(--color-up)]">✓ Logged. Today’s move will show you’re done until your next buy day.</p>
         ) : (
           <>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={addToHoldings} onChange={(e) => { setAddToHoldings(e.target.checked) }} />
               Also add these to what I own (shares estimated at the last close; fix them from your broker app later)
             </label>
-            <button className="btn mt-3 w-full" onClick={layStone}>
-              I invested {fmtMoney(split.allocations.reduce((a, x) => a + x.amount, 0))}. Lay the stone
+            <button className="btn mt-3 w-full" onClick={logBuy}>
+              I invested {fmtMoney(split.allocations.reduce((a, x) => a + x.amount, 0))}
             </button>
           </>
         )}
       </Card>
+      <BackupCard data={data} update={update} />
       {problem && <p role="alert" className="fixed inset-x-4 bottom-24 z-20 border-l-4 border-[var(--color-down)] bg-[var(--panel)] p-3 text-sm shadow-xl">{problem}</p>}
     </div>
   )
@@ -767,65 +744,6 @@ function PlanPage({ snap, data, update }: { snap: Snapshot; data: PhoneData; upd
   )
 }
 
-function WallPage({ data, update }: { data: PhoneData; update: (d: PhoneData) => void }) {
-  const wall = buildWall(data.entries, localMonth())
-  const [month, setMonth] = useState(localMonth())
-  const [amount, setAmount] = useState('')
-  const [msg, setMsg] = useState<string | null>(null)
-
-  function log(e: SubmitEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const n = Number(amount.replace(/[$,\s]/g, ''))
-    if (!/^\d{4}-\d{2}$/.test(month) || month > localMonth()) {
-      setMsg('Pick a month that has already started.')
-      return
-    }
-    if (!Number.isFinite(n) || n <= 0 || n > 1e7) {
-      setMsg('Type the amount you invested, like 500.')
-      return
-    }
-    update({ ...data, entries: [...data.entries, { id: newId(), month, amount: Math.round(n * 100) / 100, note: '', created_at: new Date().toISOString() }] })
-    setAmount('')
-    setMsg('✓ Stone laid.')
-  }
-
-  const recent = [...data.entries].sort((a, b) => (a.month < b.month ? 1 : -1)).slice(0, 24)
-  return (
-    <div className="space-y-5">
-      <PageHeader title="My Wall" intro="One stone for every month you invest. A full year earns a keystone." />
-      <Card>
-        <p className="serif mb-4 text-lg">{wall.message}</p>
-        <WallStats wall={wall} />
-        <div className="mt-5"><GrowingWall wall={wall} /></div>
-        <form onSubmit={log} className="mt-5 flex flex-wrap items-end gap-2">
-          <label className="text-sm">Month<input className="input mt-1 w-40" type="month" value={month} max={localMonth()} min="1990-01"
-            onChange={(e) => { setMonth(e.target.value) }} aria-label="Month you invested" /></label>
-          <label className="text-sm">Amount<input className="input mt-1 w-28" inputMode="decimal" placeholder="500" value={amount}
-            onChange={(e) => { setAmount(e.target.value) }} aria-label="Amount you invested in dollars" /></label>
-          <button className="btn">Lay a stone</button>
-        </form>
-        {recent.length > 0 && (
-          <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-semibold">Your log</summary>
-            <ul className="mt-2 divide-y divide-[var(--line)] text-sm">
-              {recent.map((en) => (
-                <li key={en.id} className="flex items-center gap-3 py-2">
-                  <span className="flex-1 font-mono">{fmtMonth(`${en.month}-01`)}</span>
-                  <span className="font-mono font-semibold">{fmtMoney(en.amount)}</span>
-                  <button className="btn btn-ghost px-2 py-1 text-xs" aria-label={`Remove ${fmtMoney(en.amount)} from ${fmtMonth(`${en.month}-01`)}`}
-                    onClick={() => { update({ ...data, entries: data.entries.filter((x) => x.id !== en.id) }) }}>Remove</button>
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-      </Card>
-      <BackupCard data={data} update={update} />
-      {msg && <p role="status" className="text-sm">{msg}</p>}
-    </div>
-  )
-}
-
 // ---------------------------------------------------------------------------------------------
 // Shell
 
@@ -834,11 +752,10 @@ const TABS = [
   { id: 'invest', label: 'Invest', icon: 'M12 3v18M7 8h7a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h8' },
   { id: 'search', label: 'Search', icon: 'M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM20 20l-4.8-4.8' },
   { id: 'plan', label: 'Plan', icon: 'M3 20h18M4 20v-5h7v5M13 20v-9h7v9M8 15V9h8v2' },
-  { id: 'wall', label: 'Wall', icon: 'M3 6h18v4H3zM3 14h18v4H3zM9 6v4M15 14v4M7 14v4' },
   { id: 'learn', label: 'Learn', icon: 'M4 5h7a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H4zM20 5h-6a3 3 0 0 0-3 3' },
 ] as const
 type TabId = (typeof TABS)[number]['id']
-const ALIAS: Record<string, TabId> = { home: 'today', money: 'invest' }
+const ALIAS: Record<string, TabId> = { home: 'today', money: 'invest', wall: 'invest' }
 
 function tabFromHash(): TabId {
   const h = window.location.hash.replace(/^#\/?/, '')
@@ -907,12 +824,11 @@ export default function PhoneApp() {
               : null)} />
         )}
         {snap && tab === 'plan' && <PlanPage snap={snap} data={data} update={update} />}
-        {tab === 'wall' && <WallPage data={data} update={update} />}
         {snap && tab === 'learn' && (
           <div><PageHeader title="Learn" intro="Every word the app uses, in plain English." /><LearnView data={snap.learn} /></div>
         )}
         <p className="muted mt-10 text-center text-xs">
-          Educational tool, not financial advice. Your holdings and wall stay on this phone. {snap && `Data updated ${fmtTimestamp(snap.generated_at)}.`}
+          Educational tool, not financial advice. Your holdings and watchlist stay on this device. {snap && `Data updated ${fmtTimestamp(snap.generated_at)}.`}
           <br />App version {fmtTimestamp(__APP_BUILT__)}
         </p>
       </main>
