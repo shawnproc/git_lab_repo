@@ -73,12 +73,14 @@ content/learn.json   glossary, FAQ, links (https only, each verified before addi
 - **Write for a beginner.** Every user-facing string is plain English: say what a term means the
   first time, prefer "$1 of sales keeps 44¢" to "44% operating margin", and pair each screen with an
   `Explain` box. Never imply a buy/sell instruction from mood or chart events.
-- **Visual identity (keep it):** two themes, Blueprint (dark, default) and Ledger (light), defined
-  as CSS tokens in `frontend/src/index.css`. Masonry motifs live in `components/brand.tsx` (keystone
-  tabs, mood arch, foundation wall, spirit level, stone icons) and `components/GrowingWall.tsx`. Fonts are self-hosted via
-  @fontsource (Fraunces, IBM Plex Sans/Mono); never load fonts or assets from a CDN (CSP).
-  Chart colors are validated with the dataviz palette validator for both surfaces; re-run it
-  after any change, and keep shape (arrows vs circles) as a second cue beside color.
+- **Visual identity: AURORA (owner's choice: new-age, modern, boundary-pushing).** Two themes,
+  Aurora (dark, default) and Prism (light), defined as CSS tokens in `frontend/src/index.css`:
+  animated aurora light behind frosted-glass slabs with gradient hairlines, gradient pill buttons,
+  a floating glass tab dock. Fonts are self-hosted via @fontsource (Unbounded display, Inter text,
+  JetBrains Mono numbers); never load fonts or assets from a CDN (CSP). Respect
+  `prefers-reduced-motion`. Chart colors are validated with the dataviz palette validator for both
+  surfaces (#141226 dark, #ffffff light); re-run it after any change, and keep shape (arrows vs
+  circles) as a second cue beside color.
 - `tasks.ps1` must stay plain ASCII and Windows PowerShell 5.1 compatible (no `&&`, `??`, ternary).
 - Keep commits small, with imperative messages.
 

@@ -37,7 +37,7 @@ function phoneHead(): Plugin {
           '    <meta name="mobile-web-app-capable" content="yes" />',
           '    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />',
           '    <meta name="apple-mobile-web-app-title" content="Keystone" />',
-          '    <meta name="theme-color" content="#0a2240" />',
+          '    <meta name="theme-color" content="#07060d" />',
           '  </head>',
         ].join('\n'))
     },

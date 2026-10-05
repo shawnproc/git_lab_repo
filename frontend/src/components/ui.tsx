@@ -16,7 +16,7 @@ export function Card({ title, children, className = '' }: { title?: ReactNode; c
 export function Explain({ title = 'What does this mean?', children }: { title?: string; children: ReactNode }) {
   return (
     <details className="explain mt-4 px-4 py-2 text-sm">
-      <summary className="cursor-pointer select-none font-semibold text-[var(--color-brand-2)]">Margin note: {title}</summary>
+      <summary className="cursor-pointer select-none font-semibold text-[var(--color-brand-2)]">{title}</summary>
       <div className="mt-2 space-y-2 leading-relaxed">{children}</div>
     </details>
   )

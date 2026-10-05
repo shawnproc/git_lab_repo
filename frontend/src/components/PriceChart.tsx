@@ -73,7 +73,7 @@ export function PriceChart({
       layout: {
         background: { color: 'transparent' },
         textColor: text,
-        fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+        fontFamily: '"JetBrains Mono Variable", ui-monospace, monospace',
         attributionLogo: true,
       },
       grid: { vertLines: { color: grid }, horzLines: { color: grid } },
