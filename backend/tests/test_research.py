@@ -104,12 +104,15 @@ def test_a_recent_split_makes_the_price_check_wait(
 
 def test_funds_show_price_only(clock: FakeClock, calendar: MarketCalendar) -> None:
     quotes = {"VTI": {"close": 300.0, "change_pct": 0.5, "day": "2026-10-02"},
-              "AAPL": {"close": 1.0}, "^GSPC": {"close": 5000.0}}  # fmt: skip
+              "AAPL": {"close": 1.0}, "^GSPC": {"close": 5000.0},
+              "BABA": {"close": 120.0}}  # fmt: skip
     r = _build(clock, FakeBatchPrices(calendar), funds=quotes)
     by = {c["s"]: c for c in r["companies"]}
     assert by["VTI"]["v"] == "fund" and by["VTI"]["close"] == 300.0
     assert by["AAPL"]["v"] != "fund"  # a company is never shown as a fund
     assert "^GSPC" not in by
+    # A stock with no SEC numbers we can read is "price only", never mislabeled as a fund.
+    assert by["BABA"]["v"] == "unknown" and "Price only" in by["BABA"]["h"]
 
 
 def test_trading_day_still_open_is_never_used(clock: FakeClock, calendar: MarketCalendar) -> None:

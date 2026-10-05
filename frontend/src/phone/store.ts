@@ -15,6 +15,19 @@ const MAX_TRADES = 20_000
 export const CORE_CHOICES = [60, 70, 80] as const
 const DAY = /^(199\d|20\d\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
 const SOURCES = new Set(['robinhood', 'adjust', 'stone'])
+export const MAX_WATCH = 50
+/** Search picks you can add to your buy days (each still under the per-company cap). */
+export const MAX_INCLUDED = 5
+const WATCH_VERDICTS = new Set(['fit', 'pricey', 'no', 'unknown', 'fund'])
+
+/** A company you saved from Search, to follow and maybe invest in later. */
+export interface WatchItem {
+  symbol: string
+  added_at: string // ISO time you saved it
+  added_price: number | null // its last close when you saved it
+  verdict_at_add: string // the verdict back then, so a change can be shown
+  include: boolean // add it to your buy days (only while it's still a "Good fit")
+}
 
 export interface PhoneData {
   version: 1
@@ -26,9 +39,10 @@ export interface PhoneData {
   last_backup_at: string | null // when you last saved a backup file
   values_as_of: string | null // when you last updated those values
   entries: Entry[] // the wall
+  watchlist: WatchItem[] // companies saved from Search
 }
 
-export const empty = (): PhoneData => ({ version: 1, holdings: {}, shares: {}, trades: [], schedule: null, core_pct: null, last_backup_at: null, values_as_of: null, entries: [] })
+export const empty = (): PhoneData => ({ version: 1, holdings: {}, shares: {}, trades: [], schedule: null, core_pct: null, last_backup_at: null, values_as_of: null, entries: [], watchlist: [] })
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -93,7 +107,22 @@ export function parseData(raw: unknown): PhoneData {
   if (corePct !== null && !(CORE_CHOICES as readonly unknown[]).includes(corePct)) throw new Error('The backup’s fund/stock split is damaged.')
   const lastBackup = raw.last_backup_at ?? null
   if (lastBackup !== null && (typeof lastBackup !== 'string' || Number.isNaN(Date.parse(lastBackup)))) throw new Error('The backup’s date is damaged.')
-  return { version: 1, holdings, shares, trades, schedule, core_pct: corePct as number | null, last_backup_at: lastBackup, values_as_of: asOf, entries }
+  if (raw.watchlist !== undefined && (!Array.isArray(raw.watchlist) || raw.watchlist.length > MAX_WATCH)) throw new Error('The backup’s watchlist is damaged.')
+  const seen = new Set<string>()
+  const watchlist: WatchItem[] = (raw.watchlist ?? []).map((w: unknown) => {
+    if (!isObj(w)) throw new Error('The backup’s watchlist is damaged.')
+    const { symbol, added_at, added_price, verdict_at_add, include } = w
+    if (typeof symbol !== 'string' || !SYMBOL.test(symbol) || seen.has(symbol)
+      || typeof added_at !== 'string' || added_at.length > 40 || Number.isNaN(Date.parse(added_at))
+      || (added_price !== null && (typeof added_price !== 'number' || !Number.isFinite(added_price) || added_price <= 0 || added_price > 1e7))
+      || typeof verdict_at_add !== 'string' || !WATCH_VERDICTS.has(verdict_at_add) || typeof include !== 'boolean') {
+      throw new Error('The backup has a damaged watchlist entry.')
+    }
+    seen.add(symbol)
+    return { symbol, added_at, added_price, verdict_at_add, include }
+  })
+  if (watchlist.filter((w) => w.include).length > MAX_INCLUDED) throw new Error('The backup’s watchlist is damaged.')
+  return { version: 1, holdings, shares, trades, schedule, core_pct: corePct as number | null, last_backup_at: lastBackup, values_as_of: asOf, entries, watchlist }
 }
 
 export function load(): PhoneData {

@@ -34,9 +34,10 @@ def judge(r: ScreenResult, v: Valuation | None, cfg: ScreenConfig) -> Judgement:
                                     "so there's nothing fair to judge it on.")  # fmt: skip
     failed = [c for c in r.checks if c.status == "fail"]
     if failed:
-        names = ", ".join(f"“{c.label}”" for c in failed)
-        return Judgement("no", f"It doesn't pass {names} on its latest yearly report, so it "
-                               "doesn't fit the plan's rules.")  # fmt: skip
+        names = "; ".join(c.label.rstrip("?:") for c in failed)
+        n = len(failed)
+        return Judgement("no", f"On its latest yearly report it misses {n} of the plan's 5 checks "
+                               f"({names}), so it doesn't fit the plan's rules.")  # fmt: skip
     missing = sum(c.status == "unavailable" for c in r.checks)
     if missing > cfg.max_unavailable or r.score is None:
         return Judgement("unknown", f"{missing} of the 5 checks can't be run from its reports, "

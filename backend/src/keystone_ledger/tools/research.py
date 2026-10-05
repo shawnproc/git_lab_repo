@@ -33,6 +33,50 @@ CHUNK = 100  # tickers per batch request
 SYMBOL = re.compile(r"^[A-Z]{1,5}(\.[A-Z])?$")  # plain US listings (BRK.B yes, warrants no)
 LONG_YEARS = 6  # year-end closes for the price check's 5-year median
 FUND_NOTE = "A fund (a basket of many companies), so the company checks don't apply. Price only."
+PRICE_ONLY_NOTE = (
+    "No yearly SEC report we can read for it (companies based outside the US report "
+    "differently), so there's nothing fair to judge it on. Price only."
+)
+# Well-known index funds/ETFs. Anything else without SEC numbers is "price only", never "fund".
+KNOWN_FUNDS = frozenset(
+    {
+        "SPY",
+        "VOO",
+        "IVV",
+        "QQQ",
+        "QQQM",
+        "VT",
+        "VTI",
+        "VXUS",
+        "ITOT",
+        "SCHB",
+        "SCHX",
+        "SCHG",
+        "SCHD",
+        "VUG",
+        "VTV",
+        "VIG",
+        "VYM",
+        "DGRO",
+        "JEPI",
+        "IXUS",
+        "VEA",
+        "VWO",
+        "BND",
+        "AGG",
+        "VNQ",
+        "IWM",
+        "DIA",
+        "VGT",
+        "XLK",
+        "XLE",
+        "XLF",
+        "XLV",
+        "SMH",
+        "SOXX",
+        "ARKK",
+    }
+)
 
 
 def _batches(provider: Any, symbols: list[str], start: date, end: date,
@@ -133,11 +177,16 @@ def build_research(
                       cfg.screen.valuation_pe_multiple, h.splits if h else None)  # fmt: skip
         companies.append(_company(r, judge(r, v, cfg.screen), v, h, now))
     with_sales = {r.symbol for r in results if r.metrics.latest_year is not None}
+    core = {f.symbol for f in cfg.plan.core_funds}
+    names = {f.symbol: f.name or f.symbol for f in cfg.plan.core_funds}
+    names |= {t: v[1] for t, v in tickers.items()}
     known = {c["s"] for c in companies}
     for sym, q in sorted(funds.items()):
         if sym in known or sym in with_sales or not SYMBOL.fullmatch(sym) or not q.get("close"):
             continue
-        companies.append({"s": sym, "n": sym, "v": "fund", "h": FUND_NOTE, "close": q["close"],
+        fund = sym in KNOWN_FUNDS or sym in core
+        companies.append({"s": sym, "n": names.get(sym, sym), "v": "fund" if fund else "unknown",
+                          "h": FUND_NOTE if fund else PRICE_ONLY_NOTE, "close": q["close"],
                           "chg": q.get("change_pct"), "day": q.get("day"),
                           "dy": q.get("dividend_yield_pct")})  # fmt: skip
     priced = sum(1 for c in companies if c.get("close"))
