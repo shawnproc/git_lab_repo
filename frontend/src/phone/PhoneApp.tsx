@@ -18,6 +18,8 @@ import { fetchResearch, type Research } from './research'
 import { phoneWatch, SearchPage } from './Search'
 import { LiveProvider, useLive } from './LiveContext'
 import { LiveNow } from './LiveNow'
+import { MoonBets, MoonLearn, SellTaxes } from './Moonshot'
+import type { Moonshot } from './moonshot'
 import { askPersistent, load, newId, type PhoneData, save } from './store'
 
 // ---------------------------------------------------------------------------------------------
@@ -753,12 +755,17 @@ const TABS = [
   { id: 'search', label: 'Search', icon: 'M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM20 20l-4.8-4.8' },
   { id: 'plan', label: 'Plan', icon: 'M3 20h18M4 20v-5h7v5M13 20v-9h7v9M8 15V9h8v2' },
   { id: 'learn', label: 'Learn', icon: 'M4 5h7a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H4zM20 5h-6a3 3 0 0 0-3 3' },
+  // The Moonshot side
+  { id: 'moon', label: 'Bets', icon: 'M12 2c3 3 4.5 6.5 4.5 10.5L12 17l-4.5-4.5C7.5 8.5 9 5 12 2zM9 17l-2 5 5-2M15 17l2 5-5-2M12 9.5a1.5 1.5 0 1 0 0 .01' },
+  { id: 'sell', label: 'Sell & tax', icon: 'M4 7h16M4 12h10M4 17h6M17 14l3 3-3 3M20 17h-6' },
+  { id: 'moonlearn', label: 'Learn risk', icon: 'M12 3l9 16H3zM12 10v4M12 17v.01' },
 ] as const
+const MOON_TABS = new Set<string>(['moon', 'sell', 'moonlearn'])
 type TabId = (typeof TABS)[number]['id']
 const ALIAS: Record<string, TabId> = { home: 'today', money: 'invest', wall: 'invest' }
 
 function tabFromHash(): TabId {
-  const h = window.location.hash.replace(/^#\/?/, '')
+  const h = window.location.hash.replace(/^#\/?/, '').split('?')[0] ?? ''
   if (TABS.some((t) => t.id === h)) return h as TabId
   return ALIAS[h] ?? 'today'
 }
@@ -791,16 +798,27 @@ export default function PhoneApp() {
   const liveSymbols = useMemo(() => [
     ...Object.keys(data.shares).filter((k) => (data.shares[k] ?? 0) > 0),
     ...data.watchlist.map((w) => w.symbol),
+    ...data.moonshot.bets.filter((b) => b.kind === 'stock').map((b) => b.symbol),
     ...(snap?.plan.targets.map((t) => t.symbol) ?? []),
-  ], [data.shares, data.watchlist, snap])
+  ], [data.shares, data.watchlist, data.moonshot.bets, snap])
+  const side = MOON_TABS.has(tab) ? 'moon' : 'steady'
+  // Last closes we know of, for moonshot bets: the plan's tickers, then every Search company.
+  const closes = useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const c of research?.companies ?? []) if (c.close) out[c.s] = c.close
+    for (const [s, q] of Object.entries(snap?.prices?.quotes ?? {})) out[s] = q.close
+    return out
+  }, [research, snap])
+  const planValue = snap ? Object.values(valuesOf(snap, data)).reduce((a, v) => a + v, 0) : 0
 
   const update = useCallback((d: PhoneData) => {
     setData(d)
     if (!save(d)) setError('Couldn’t save on this phone (storage full or private mode). Save a backup.')
   }, [])
+  const setMoon = (m: Moonshot) => { update({ ...data, moonshot: m }) }
 
   return (
-    <div className="flex min-h-screen flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="flex min-h-screen flex-col" data-side={side} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <header className="mx-auto flex w-full max-w-2xl items-center justify-between px-4 pt-4">
         <div className="flex items-center gap-2">
           <KeystoneLogo size={30} />
@@ -810,6 +828,12 @@ export default function PhoneApp() {
           {theme === 'dark' ? '☀ Prism' : '✦ Aurora'}
         </button>
       </header>
+      <div className="mx-auto mt-4 w-full max-w-2xl px-4">
+        <div role="group" aria-label="Side of the app" className="side-switch grid grid-cols-2 p-1 text-sm font-bold">
+          <a href="#/today" aria-current={side === 'steady' ? 'true' : undefined}>Steady <span className="font-normal opacity-70">· long-term</span></a>
+          <a href="#/moon" aria-current={side === 'moon' ? 'true' : undefined}>Moonshot <span className="font-normal opacity-70">· high risk</span></a>
+        </div>
+      </div>
       <LiveProvider symbols={liveSymbols}>
       <ResearchCtx.Provider value={research}>
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-32 pt-6">
@@ -824,6 +848,9 @@ export default function PhoneApp() {
               : null)} />
         )}
         {snap && tab === 'plan' && <PlanPage snap={snap} data={data} update={update} />}
+        {tab === 'moon' && <MoonBets m={data.moonshot} set={setMoon} planValue={planValue} closes={closes} />}
+        {tab === 'sell' && <SellTaxes m={data.moonshot} closes={closes} />}
+        {tab === 'moonlearn' && <MoonLearn />}
         {snap && tab === 'learn' && (
           <div><PageHeader title="Learn" intro="Every word the app uses, in plain English." /><LearnView data={snap.learn} /></div>
         )}
@@ -837,7 +864,7 @@ export default function PhoneApp() {
       <nav aria-label="Main" className="fixed inset-x-3 bottom-3 z-10"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="dock mx-auto flex max-w-xl px-1">
-          {TABS.map((t) => (
+          {TABS.filter((t) => MOON_TABS.has(t.id) === (side === 'moon')).map((t) => (
             <a key={t.id} href={`#/${t.id}`} aria-current={tab === t.id ? 'page' : undefined}
               className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[0.68rem] font-semibold tracking-wide ${tab === t.id ? '' : 'muted'}`}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={t.icon} /></svg>

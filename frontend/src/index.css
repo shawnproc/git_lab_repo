@@ -425,3 +425,59 @@ a:focus-visible {
   font-weight: 600;
   letter-spacing: -0.04em;
 }
+
+/* ---------- Two sides: Steady (long-term) and Moonshot (high risk) ---------- */
+.side-switch {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.side-switch a {
+  border-radius: 999px;
+  padding: 0.55rem 0.75rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.side-switch a[aria-current="true"] {
+  color: var(--btn-text);
+  background: linear-gradient(110deg, var(--grad-a), var(--grad-b) 60%, var(--grad-c));
+  box-shadow: 0 8px 24px -10px var(--shadow-ink);
+}
+
+/* Moonshot runs hotter: ember and magenta light, so you always know which side you're on. */
+[data-side="moon"] {
+  --grad-a: #ff7a1a;
+  --grad-b: #ff2d8b;
+  --grad-c: #b14dff;
+  --btn-text: #ffffff;
+  --color-brand-2: #ff5fa2;
+  --shadow-ink: rgb(255 45 139 / 0.4);
+}
+
+:root.dark [data-side="moon"] {
+  --ink: #ff8a3d;
+}
+
+:root [data-side="moon"] {
+  --color-brand-2: #c4135f;
+}
+
+:root.dark [data-side="moon"] {
+  --color-brand-2: #ff6fae;
+}
+
+body:has([data-side="moon"])::before {
+  background:
+    radial-gradient(38vmax 30vmax at 18% 12%, rgb(255 110 40 / 0.36), transparent 70%),
+    radial-gradient(34vmax 28vmax at 85% 22%, rgb(255 45 139 / 0.3), transparent 70%),
+    radial-gradient(40vmax 32vmax at 55% 95%, rgb(150 60 255 / 0.3), transparent 70%);
+}
+
+input[type="range"],
+input[type="checkbox"] {
+  accent-color: var(--grad-b);
+}

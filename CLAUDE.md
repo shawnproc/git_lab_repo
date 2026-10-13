@@ -11,8 +11,15 @@ The full build plan and phase status are in `docs/PLAN.md`. Read it before start
 - **Guardrails are code, not UI.** Limits live in `config.py` (`HARD_MAX_*`) and schema validators
   (no stock above 10%; targets always sum to 100%). Config is frozen at startup and no API writes
   it. Every config change is audited (`config_audit`). Don't add runtime setters for plan settings.
-- **Scope.** Long-term plan only: mood, plan, contribution, holdings/drift, charts, Learn. No swing
-  trading, backtests, auto-trading or live broker connections. Importing a broker's exported file
+- **Scope.** Two sides. **Steady** (the default): the long-term plan only: mood, plan,
+  contribution, holdings/drift, charts, Search, Learn. **Moonshot** (owner's request): tracking
+  small high-risk bets the owner makes themselves, behind a risk checklist and code guardrails in
+  `phone/moonshot.ts` (budget 1-10% of everything, `MAX_BUDGET_PCT` is a hard ceiling; no bet over
+  25% of the budget; bets count at cost; never touches Steady's buy math), plus education on
+  selling and a federal tax estimate (`phone/tax.ts`, numbers only from IRS Rev. Proc. 2025-32;
+  add a filing status only once its numbers are verified against the IRS text). Neither side picks
+  stocks to chase, predicts gains, tracks margin/options, backtests, auto-trades or connects live
+  to a broker. Importing a broker's exported file
   on the phone (`phone/robinhood.ts`) is fine; a broker API needs the owner's go-ahead (keys).
 - **No paid services, no keys without asking.** Ask the owner before adding any dependency that
   needs an account, API key or payment.
