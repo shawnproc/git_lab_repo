@@ -220,7 +220,8 @@ export function SearchPage({ research, error, watch, chart }: {
   research: Research | null; error: string | null; watch: Watch; chart: (symbol: string) => ReactNode
 }) {
   const [query, setQuery] = useState('')
-  const [picked, setPicked] = useState<string | null>(null)
+  // #/search?s=TICKER opens that company (links from the Moonshot radar).
+  const [picked, setPicked] = useState<string | null>(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('s')?.toUpperCase().slice(0, 16) ?? null)
   const { quotes: live, error: liveError, setFocus } = useLive()
   const results = useMemo(() => (research ? searchCompanies(research.companies, query) : []), [research, query])
   const company = picked && research ? research.companies.find((c) => c.s === picked) : undefined

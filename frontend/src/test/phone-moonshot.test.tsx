@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { betProblems, budgetOf, emptyMoonshot, milestone, type Moonshot, multiple, parseMoonshot } from '../phone/moonshot'
 import PhoneApp, { type Snapshot } from '../phone/PhoneApp'
 import { empty, parseData } from '../phone/store'
+import { underTheRadar, warningSigns } from '../phone/radar'
 import { estimateSale, longTermFrom, ordinaryTax, sharesToRecoverCost } from '../phone/tax'
 import { learn } from './fixtures'
 
@@ -166,5 +167,33 @@ describe('Moonshot side', () => {
     expect(screen.getByText(/If you waited until/)).toBeInTheDocument()
     expect(screen.getByText(/sell about/)).toBeInTheDocument() // shares to take the $100 back out
     expect(screen.getByText(/Estimate only, not tax advice/)).toBeInTheDocument()
+  })
+})
+
+describe('radar', () => {
+  const co = (s: string, rev: number, g3: number | null, g1: number | null, om: number | null, om0: number | null, fcfm: number | null = null) =>
+    ({ s, n: `${s} Inc`, v: 'fit' as const, h: '', close: 10, chg: 0, day: '2026-10-12', dy: null, rev, g3, g1, om, om0, fcfm })
+
+  it('finds small fast growers that are getting more profitable or make cash', () => {
+    const list = [
+      co('FAST', 800e6, 45, 50, 12, 6), // small, fast, margins rising
+      co('CASH', 2e9, 30, 28, -2, -1, 5), // margins slipping but makes cash
+      co('BURN', 500e6, 80, 90, -40, -30, -20), // fast but burning cash and getting worse
+      co('SLOW', 900e6, 10, 8, 20, 15),
+      co('BIG', 50e9, 40, 40, 30, 25), // fast, but everyone knows it
+    ]
+    expect(underTheRadar(list).map((r) => r.c.s)).toEqual(['FAST', 'CASH'])
+    expect(underTheRadar(list)[0]?.why).toMatch(/sales up about 45% a year, profit per \$1 of sales up from 6\.0¢ to 12\.0¢/)
+  })
+
+  it('flags household names whose sales shrink or whose margins fall', () => {
+    const list = [
+      co('SHOE', 46e9, 1, -10, 8, 12), // the Nike pattern: sales down, margins down
+      co('DIP', 30e9, 5, 2, 20, 24), // margins down 4 points
+      co('FINE', 200e9, 8, 6, 30, 29),
+      co('SMOL', 3e9, -5, -20, 1, 10), // shrinking, but not a household name
+    ]
+    expect(warningSigns(list).map((r) => r.c.s)).toEqual(['SHOE', 'DIP'])
+    expect(warningSigns(list)[0]?.why).toBe('sales fell 10.0% last year, profit per $1 of sales down from 12.0¢ to 8.0¢')
   })
 })

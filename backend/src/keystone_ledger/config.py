@@ -206,7 +206,7 @@ class DataConfig(_Frozen):
     # Extra tickers to price daily for the phone (public). See DEFAULT_EXTRA_TICKERS.
     extra_tickers: tuple[str, ...] = DEFAULT_EXTRA_TICKERS
     # Search: every SEC filer with at least this much yearly sales gets a verdict in research.json.
-    research_min_revenue_usd: float = Field(default=1e9, ge=1e8, le=1e12)
+    research_min_revenue_usd: float = Field(default=2.5e8, ge=1e8, le=1e12)
     research_enabled: bool = True
 
     @field_validator("extra_tickers")
