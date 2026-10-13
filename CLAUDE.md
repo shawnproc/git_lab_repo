@@ -31,8 +31,8 @@ The full build plan and phase status are in `docs/PLAN.md`. Read it before start
   the tests use the same numbers; change both together (incl. `buildTargets`/`sleeveWeights`
   and the `skip` list). `phone/portfolio.ts`, `sleeve.ts`, `stale.ts` are phone-only and pure.
   The snapshot is validated (`tools/validate_snapshot.py`) before it's published; never bypass it.
-  Mood never feeds buy amounts or days. `research.json` (Search) is public too and validated
-  (`tools/research.py`). Live prices (`phone/live.ts`, Finnhub) use the owner's own key, kept in
+  Mood never feeds buy amounts or days. `research.json` (Search) and `dossier.json` (SEC Form 4 / 8-K) are
+  public too and validated (`tools/research.py`, `tools/dossier.py`); SEC XML only via `defusedxml`. Live prices (`phone/live.ts`, Finnhub) use the owner's own key, kept in
   the phone's storage only (never in code, snapshots or backups), and are display-only: buy math
   always uses the last close. Backups are encrypted (`phone/backup.ts`); keep restores
   verify-then-confirm.

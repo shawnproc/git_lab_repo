@@ -568,7 +568,8 @@ def report(snap: dict[str, Any]) -> str:
 
 
 def publish(snap: dict[str, Any], previous: dict[str, Any] | None, out: Path,
-            now: datetime, research: dict[str, Any] | None = None) -> dict[str, Any]:  # fmt: skip
+            now: datetime, research: dict[str, Any] | None = None,
+            dossier: dict[str, Any] | None = None) -> dict[str, Any]:  # fmt: skip
     """Write snapshot.json only if it validates; otherwise keep the last good one. Always write
     status.json next to it, so the phone knows whether today's update worked."""
     errors = validate(snap, previous)
@@ -586,6 +587,8 @@ def publish(snap: dict[str, Any], previous: dict[str, Any] | None, out: Path,
     }
     if research is not None:
         status["research"] = research
+    if dossier is not None:
+        status["dossier"] = dossier
     (out.parent / "status.json").write_text(json.dumps(status, indent=1), encoding="utf-8")
     return status
 
@@ -635,12 +638,13 @@ def main(argv: list[str] | None = None) -> int:
     previous = _load_previous(args.previous)
     side: dict[str, Any] = {}
     prices = YFinanceProvider(MinIntervalLimiter(1.0))
+    sec = SecEdgarProvider(
+        settings.sec_user_agent, MinIntervalLimiter(cfg.data.sec_requests_per_second)
+    )
     snap = build_snapshot(
         cfg=cfg,
         fred=FredCsvProvider(MinIntervalLimiter(1.0)),
-        sec=SecEdgarProvider(
-            settings.sec_user_agent, MinIntervalLimiter(cfg.data.sec_requests_per_second)
-        ),
+        sec=sec,
         calendar=MarketCalendar(),
         prices=prices,
         previous=previous,
@@ -648,7 +652,16 @@ def main(argv: list[str] | None = None) -> int:
         side=side,
     )
     research = run_research(snap, side.get("svc"), cfg, prices, args.out, args.previous)
-    status = publish(snap, previous, args.out, utcnow(), research)
+    dossier = None
+    research_path = args.out.parent / "research.json"
+    svc = side.get("svc")
+    if svc is not None and research_path.exists():
+        from keystone_ledger.tools.dossier import run_dossier
+
+        prev_url = args.previous.rsplit("/", 1)[0] + "/dossier.json" if args.previous else None
+        dossier = run_dossier(utcnow(), sec, svc.all_tickers(), research_path,
+                              args.out.parent / "dossier.json", prev_url)  # fmt: skip
+    status = publish(snap, previous, args.out, utcnow(), research, dossier)
     if not status["ok"]:
         log.error("snapshot: NOT published, %s: %s",
                   "kept the last good one" if status["kept_previous"] else "no good one to keep",

@@ -179,3 +179,23 @@ def test_fetch_batch_validates_and_wraps_errors() -> None:
         p.fetch_batch(["AAPL"], date(2026, 1, 1), date(2026, 10, 2), interval="1m")
     with pytest.raises(ValueError, match="symbol"):
         p.fetch_batch(["../etc"], date(2026, 1, 1), date(2026, 10, 2))
+
+
+def test_quarterly_trend_and_size() -> None:
+    from datetime import UTC, datetime
+
+    from keystone_ledger.tools.research import _quarter_trend, _recent_quarters, _size
+
+    assert _recent_quarters(datetime(2026, 10, 13, tzinfo=UTC))[:3] == [
+        (2026, 3),
+        (2026, 2),
+        (2026, 1),
+    ]
+    assert _recent_quarters(datetime(2026, 2, 1, tzinfo=UTC))[0] == (2025, 4)
+    qs = {(2026, 2): (120.0, 6.0), (2025, 2): (100.0, 10.0), (2026, 1): (90.0, None)}
+    assert _quarter_trend(qs) == {"qp": "2026Q2", "qg": 20.0, "qom": 5.0, "qom0": 10.0}
+    assert _quarter_trend({(2026, 2): (120.0, 6.0)})["qp"] is None  # no year-ago quarter: nothing
+    shares = (1_000_000.0, date(2025, 12, 31))
+    assert _size(50.0, shares, {}, 25_000_000.0) == {"mcap": 50_000_000, "ps": 2.0}
+    # A split after the share count's report: the count is in old shares, so no size at all.
+    assert _size(50.0, shares, {date(2026, 6, 1): 4.0}, 25_000_000.0) == {"mcap": None, "ps": None}

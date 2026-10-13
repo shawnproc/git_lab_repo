@@ -25,8 +25,10 @@ from keystone_ledger.data.ratelimit import MinIntervalLimiter
 
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 FRAMES_URL = "https://data.sec.gov/api/xbrl/frames/us-gaap/{tag}/{unit}/{period}.json"
-# Dollar amounts, and per-share amounts like earnings per share.
-UNITS = frozenset({"USD", "USD-per-shares"})
+# Dollar amounts, per-share amounts like earnings per share, and share counts.
+UNITS = frozenset({"USD", "USD-per-shares", "shares"})
+# Filings (daily indexes, Form 4 and 8-K files) are fetched only from here.
+ARCHIVES = "https://www.sec.gov/Archives/edgar/"
 _MAX_BYTES = 40_000_000
 _TAG_OK = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
@@ -124,7 +126,45 @@ class SecEdgarProvider:
             raise ValueError(f"invalid unit {unit!r}")
         if not tag or not set(tag) <= _TAG_OK or len(tag) > 128:
             raise ValueError(f"invalid XBRL tag {tag!r}")
-        if not (len(period) in (6, 9) and period.startswith("CY") and period[2:6].isdigit()):
+        # CY2024 (a year), CY2024Q3 (a quarter), CY2024Q4I (an instant).
+        if not (len(period) in (6, 8, 9) and period.startswith("CY") and period[2:6].isdigit()):
             raise ValueError(f"invalid frame period {period!r}")
         payload = self._get_json(FRAMES_URL.format(tag=tag, unit=unit, period=period))
         return {} if payload is None else parse_frame(payload)
+
+    def fetch_text(
+        self, url: str, max_bytes: int = 2_000_000, stop_at: str | None = None
+    ) -> str | None:
+        """A filing or daily index from the EDGAR archives, as text. Only `ARCHIVES` URLs are
+        allowed. With `stop_at`, reading stops right after that marker (e.g. the end of a filing's
+        header), so a large filing isn't downloaded just to read its first lines."""
+        if not url.startswith(ARCHIVES) or ".." in url or any(c.isspace() for c in url):
+            raise ValueError("sec: only EDGAR archive URLs are allowed")
+        if "@" not in self._ua:
+            raise ProviderError(
+                "sec: set KL_SEC_USER_AGENT in .env (name + email), required by the SEC"
+            )
+        self._limiter.wait()
+        body = bytearray()
+        try:
+            with self._client.stream("GET", url, headers={"User-Agent": self._ua}) as resp:
+                if resp.status_code == 404:
+                    return None
+                if resp.status_code in (403, 429):
+                    raise RateLimitedError(
+                        f"sec: HTTP {resp.status_code} (rate limit or User-Agent)"
+                    )
+                if resp.status_code != 200:
+                    raise ProviderError(f"sec: HTTP {resp.status_code}")
+                marker = stop_at.encode() if stop_at else None
+                for chunk in resp.iter_bytes():
+                    body += chunk
+                    if marker is not None and marker in body:
+                        break
+                    if len(body) > max_bytes:
+                        if marker is None:
+                            raise ProviderError("sec: filing too large")
+                        break
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"sec: {type(exc).__name__}") from exc
+        return body.decode("utf-8", errors="replace")

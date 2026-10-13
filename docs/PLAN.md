@@ -76,6 +76,14 @@ data, educational only.
       from the request; include allowed only for a current Good fit, max 5; included picks enter
       `build_targets(extra=...)` under the same cap. The Search screen is shared
       (`phone/Search.tsx` with a `Watch` adapter).
+- [x] **Company dossier:** `tools/dossier.py` writes `dossier.json` (public) from EDGAR daily
+      master indexes: Form 4 open-market buys/sells (codes P/S, 10b5-1 flag) and 8-K item codes,
+      for Search companies, 90-day window, read newest-first under a 12-minute budget per run and
+      merged into the previous file (a day counts only when fully read; a 429 stops the run).
+      XML via `defusedxml`; archive URLs only. `research.json` gains the latest calendar quarter
+      vs a year earlier (frames CY####Q#) and size (diluted shares x close; skipped after a split).
+      Phone: `DossierCard` (5 parts), Finnhub ratings/news on the owner's key, Radar "Insiders
+      buying".
 
 ## Rules (all in `config/keystone.toml`)
 | Feature | Rule |

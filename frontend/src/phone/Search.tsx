@@ -5,6 +5,7 @@ import { type ReactNode, type SubmitEvent, useEffect, useMemo, useState } from '
 import { Card, Explain, PageHeader, StatusIcon } from '../components/ui'
 import { fmtDay, fmtMoney, fmtPct, fmtSignedPct, fmtTimestamp, gainClass } from '../format'
 import { type LiveQuote, saveKey, validKey } from './live'
+import { DossierCard } from './DossierCard'
 import { useLive } from './LiveContext'
 import { type Company, fmtBig, type Research, searchCompanies, type Verdict, VERDICT_WORDS } from './research'
 import { MAX_INCLUDED, MAX_WATCH, type PhoneData, type WatchItem } from './store'
@@ -259,6 +260,7 @@ export function SearchPage({ research, error, watch, chart }: {
       </Card>
       {liveError && <p role="alert" className="text-sm">{liveError}</p>}
       {company && <Detail c={company} live={live[company.s]} item={watch.items.find((w) => w.symbol === company.s)} watch={watch} chart={chart(company.s)} />}
+      {company && <DossierCard c={company} />}
       <Watchlist research={research} watch={watch} live={live} open={open} />
       <LiveSetup device={watch.device} />
     </div>

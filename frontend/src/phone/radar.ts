@@ -2,6 +2,7 @@
 // It doesn't predict prices. It surfaces what the reports already show, before most people look:
 //   Under the radar: smaller companies whose sales are growing fast and whose profits are improving.
 //   Warning signs: household names whose sales are shrinking or whose profit per $1 is falling.
+import { type Dossier, summarize } from './dossier'
 import type { Company } from './research'
 
 export const SMALL_MAX = 5e9 // yearly sales: at or under this is "not a household name" here
@@ -40,6 +41,23 @@ export function warningSigns(list: Company[], limit = 25): RadarRow[] {
     if (shrinking && n(c.g1)) bits.push(`sales fell ${Math.abs(c.g1).toFixed(1)}% last year`)
     if (drop >= MARGIN_DROP && n(c.om) && n(c.om0)) bits.push(`profit per $1 of sales down from ${pts(c.om0)} to ${pts(c.om)}`)
     out.push({ c, why: bits.join(', '), score: Math.max(0, -(c.g1 ?? 0)) + Math.max(0, drop) })
+  }
+  return out.sort((a, b) => b.score - a.score || (a.c.s < b.c.s ? -1 : 1)).slice(0, limit)
+}
+
+export const INSIDER_MIN = 100_000 // dollars bought for a company to show without a cluster
+
+/** Companies where insiders bought with their own money: clusters first, then the most dollars. */
+export function insidersBuying(list: Company[], d: Dossier, limit = 25): RadarRow[] {
+  const out: RadarRow[] = []
+  for (const c of list) {
+    const rows = d.companies[c.s]?.t
+    if (!rows) continue
+    const s = summarize(rows)
+    if (s.buys === 0 || (!s.cluster && s.bought < INSIDER_MIN)) continue
+    const who = s.buyers === 1 ? '1 insider' : `${String(s.buyers)} different insiders`
+    const why = `${who} bought $${Math.round(s.bought).toLocaleString('en-US')} with their own money${s.cluster ? ' within a month of each other' : ''}`
+    out.push({ c, why, score: (s.cluster ? 1e12 : 0) + s.bought })
   }
   return out.sort((a, b) => b.score - a.score || (a.c.s < b.c.s ? -1 : 1)).slice(0, limit)
 }

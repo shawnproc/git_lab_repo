@@ -169,7 +169,7 @@ describe('Search tab', () => {
     fireEvent.click(screen.getByLabelText('Include in my buy days'))
     const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as PhoneData
     expect(saved.watchlist).toEqual([expect.objectContaining({ symbol: 'AAPL', added_price: 255.5, verdict_at_add: 'fit', include: true })])
-    expect(spy.mock.calls.every((c) => /\/(snapshot|status|research)\.json$/.test(c[0]))).toBe(true) // no key: no live calls
+    expect(spy.mock.calls.every((c) => /\/(snapshot|status|research|dossier)\.json$/.test(c[0]))).toBe(true) // no key: no live calls
   })
 
   it('shows a verdict change and pauses a pick that is no longer a fit', async () => {

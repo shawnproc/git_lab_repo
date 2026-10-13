@@ -102,6 +102,16 @@ history on the **Today** chart (with "you added $X · the market moved $Y").
   of sales fell 3¢+ in two years, the kind of slowdown that showed at Nike before the stock fell.
   Facts, not predictions; tap a company for its full check-up. Search now covers every US company
   with at least $250 million in yearly sales.
+- **Company dossier** (every company in Search): the public traces of what insiders and pros
+  know. **1** insider trades from SEC Form 4 (who bought or sold with their own money, how much,
+  and whether a sale was planned in advance; several insiders buying at once is flagged).
+  **2** the latest quarter vs a year earlier (sales and profit per $1), which shows a slowdown
+  months before yearly numbers. **3** big events from SEC Form 8-K in plain words (red for the
+  serious ones: bankruptcy, delisting warnings, a new auditor, restated results). **4** size and
+  price: total value, and what you pay per $1 of yearly sales. **5** analyst ratings and two weeks
+  of news, with your Finnhub key. The insider history fills in over the first couple of weeks
+  (the daily job reads the SEC's filings day by day). The Radar adds **Insiders buying**.
+  Everything is public; trading on private, non-public information is illegal.
 - **On the PC app too:** the **Search** tab in the PC app uses the same daily search data
   (downloaded from your GitHub Pages site and kept on the PC). The PC's watchlist is saved in the
   PC app's own database, separate from the phone's, and included Good fits join the PC's plan and
