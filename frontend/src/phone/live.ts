@@ -163,3 +163,74 @@ export function liveValueSeries(shares: Record<string, number>, closes: Record<s
   }
   return out
 }
+
+// --- Analysts and news (also your Finnhub key; loaded only when you open a company) ---------
+
+const BASE = 'https://finnhub.io/api/v1/'
+
+async function finnhub(path: 'stock/recommendation' | 'company-news', params: Record<string, string>, key: string): Promise<unknown> {
+  if (!validKey(key) || !SYMBOL.test(params.symbol ?? '')) throw new LiveError('Live data needs a valid key.', 'key')
+  const q = new URLSearchParams({ ...params, token: key })
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}?${q.toString()}`, { credentials: 'omit', redirect: 'error', cache: 'no-store', referrerPolicy: 'no-referrer' })
+  } catch {
+    throw new LiveError('Finnhub couldn’t be reached.', 'other')
+  }
+  if (res.status === 401) throw new LiveError('Finnhub didn’t accept your key.', 'key')
+  if (res.status === 403) throw new LiveError('Your Finnhub plan doesn’t include this.', 'key')
+  if (res.status === 429) throw new LiveError('Too many lookups this minute. Try again shortly.', 'limit')
+  if (!res.ok) throw new LiveError('Finnhub is unavailable right now.', 'other')
+  return res.json()
+}
+
+export interface Ratings {
+  period: string // the month these counts are for
+  strongBuy: number
+  buy: number
+  hold: number
+  sell: number
+  strongSell: number
+}
+
+/** Analysts' ratings, latest month first. Bad rows are dropped. */
+export function parseRatings(raw: unknown): Ratings[] {
+  if (!Array.isArray(raw)) return []
+  const n = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < 1000 ? v : null)
+  const out: Ratings[] = []
+  for (const r of raw.slice(0, 12)) {
+    if (typeof r !== 'object' || r === null) continue
+    const o = r as Record<string, unknown>
+    const vals = [n(o.strongBuy), n(o.buy), n(o.hold), n(o.sell), n(o.strongSell)]
+    if (typeof o.period !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(o.period) || vals.some((v) => v === null)) continue
+    const [strongBuy, buy, hold, sell, strongSell] = vals as number[]
+    out.push({ period: o.period, strongBuy: strongBuy ?? 0, buy: buy ?? 0, hold: hold ?? 0, sell: sell ?? 0, strongSell: strongSell ?? 0 })
+  }
+  return out.sort((a, b) => (a.period < b.period ? 1 : -1))
+}
+
+export interface NewsItem { at: string; headline: string; source: string; url: string }
+
+/** Headlines, newest first. Only https links are kept; text is shown as plain text. */
+export function parseNews(raw: unknown, limit = 8): NewsItem[] {
+  if (!Array.isArray(raw)) return []
+  const out: NewsItem[] = []
+  for (const r of raw) {
+    if (typeof r !== 'object' || r === null) continue
+    const o = r as Record<string, unknown>
+    if (typeof o.headline !== 'string' || !o.headline.trim() || typeof o.url !== 'string' || typeof o.datetime !== 'number') continue
+    let url: URL
+    try { url = new URL(o.url) } catch { continue }
+    if (url.protocol !== 'https:') continue
+    out.push({ at: new Date(o.datetime * 1000).toISOString(), headline: o.headline.trim().slice(0, 200), source: typeof o.source === 'string' ? o.source.slice(0, 40) : '', url: url.toString() })
+  }
+  return out.sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, limit)
+}
+
+export const fetchRatings = async (symbol: string, key: string) => parseRatings(await finnhub('stock/recommendation', { symbol }, key))
+
+export async function fetchNews(symbol: string, key: string, today: Date): Promise<NewsItem[]> {
+  const day = (d: Date) => d.toISOString().slice(0, 10)
+  const from = new Date(today.getTime() - 14 * 86_400_000)
+  return parseNews(await finnhub('company-news', { symbol, from: day(from), to: day(today) }, key))
+}

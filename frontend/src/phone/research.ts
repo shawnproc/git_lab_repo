@@ -36,6 +36,14 @@ export interface Company {
   om?: number | null
   om0?: number | null
   fcfm?: number | null
+  // Latest quarter vs the same quarter a year earlier (SEC quarterly reports).
+  qp?: string | null // "2026Q2"
+  qg?: number | null // sales growth, %
+  qom?: number | null // profit per $1 of sales, cents, this quarter
+  qom0?: number | null // and a year earlier
+  // Size: market value (last close x shares) and price per $1 of yearly sales.
+  mcap?: number | null
+  ps?: number | null
 }
 
 export interface Research {
@@ -78,7 +86,7 @@ export function parseResearch(raw: unknown): Research {
       y: num(o.y), rev: num(o.rev),
       close: close !== null && close > 0 ? close : null,
       chg: num(o.chg), day: typeof o.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.day) ? o.day : null,
-      dy: num(o.dy), g3: num(o.g3), g1: num(o.g1), om: num(o.om), om0: num(o.om0), fcfm: num(o.fcfm), pe: num(o.pe), pe_med: num(o.pe_med), pe_flag: o.pe_flag === true, pe_note: str(o.pe_note, 400),
+      dy: num(o.dy), g3: num(o.g3), g1: num(o.g1), om: num(o.om), om0: num(o.om0), fcfm: num(o.fcfm), qp: typeof o.qp === 'string' && /^\d{4}Q[1-4]$/.test(o.qp) ? o.qp : null, qg: num(o.qg), qom: num(o.qom), qom0: num(o.qom0), mcap: num(o.mcap), ps: num(o.ps), pe: num(o.pe), pe_med: num(o.pe_med), pe_flag: o.pe_flag === true, pe_note: str(o.pe_note, 400),
       ...(checks ? { checks } : {}),
     })
   }

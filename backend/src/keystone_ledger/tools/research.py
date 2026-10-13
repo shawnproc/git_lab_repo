@@ -20,7 +20,13 @@ import httpx
 
 from keystone_ledger.config import AppConfig
 from keystone_ledger.core.research import VERDICT_WORDS, judge
-from keystone_ledger.core.screen import EPS_TAGS, Candidate, screen
+from keystone_ledger.core.screen import (
+    EPS_TAGS,
+    OPERATING_INCOME_TAGS,
+    REVENUE_TAGS,
+    Candidate,
+    screen,
+)
 from keystone_ledger.core.valuation import valuation
 from keystone_ledger.data.base import ProviderError
 from keystone_ledger.data.fundamentals import FundamentalsService
@@ -115,6 +121,96 @@ def _year_end(closes: Any, before_year: int) -> dict[int, float]:
     return out
 
 
+QUARTERS = 6  # calendar quarters of sales and profit, for the quarterly trend
+SHARES_TAG = "WeightedAverageNumberOfDilutedSharesOutstanding"
+
+
+def _recent_quarters(now: datetime) -> list[tuple[int, int]]:
+    """The last QUARTERS complete calendar quarters, newest first."""
+    y, q = now.year, (now.month - 1) // 3  # the quarter before the current one
+    out = []
+    for _ in range(QUARTERS):
+        if q == 0:
+            y, q = y - 1, 4
+        out.append((y, q))
+        q -= 1
+    return out
+
+
+def _quarterly(
+    provider: Any, now: datetime, errors: list[str]
+) -> dict[int, dict[tuple[int, int], tuple[float | None, float | None]]]:
+    """CIK -> {(year, quarter): (sales, operating income)} from the SEC's quarterly frames."""
+    out: dict[int, dict[tuple[int, int], tuple[float | None, float | None]]] = {}
+    for y, q in _recent_quarters(now):
+        period = f"CY{y}Q{q}"
+        try:
+            rev: dict[int, float] = {}
+            for tag in REVENUE_TAGS:  # first tag a company reports wins, like the yearly screen
+                for cik, fv in provider.fetch_frame(tag, period).items():
+                    rev.setdefault(cik, fv.value)
+            oi = {
+                cik: fv.value
+                for tag in OPERATING_INCOME_TAGS
+                for cik, fv in provider.fetch_frame(tag, period).items()
+            }
+        except (ProviderError, ValueError) as exc:
+            errors.append(f"quarters {period}: {exc}")
+            continue
+        for cik in set(rev) | set(oi):
+            out.setdefault(cik, {})[(y, q)] = (rev.get(cik), oi.get(cik))
+    return out
+
+
+def _shares(provider: Any, years: list[int], errors: list[str]) -> dict[int, tuple[float, date]]:
+    """CIK -> (diluted share count, period end) from the latest yearly report that has it."""
+    out: dict[int, tuple[float, date]] = {}
+    for y in years[:2]:
+        try:
+            frame = provider.fetch_frame(SHARES_TAG, f"CY{y}", "shares")
+        except (ProviderError, ValueError) as exc:
+            errors.append(f"shares CY{y}: {exc}")
+            continue
+        for cik, fv in frame.items():
+            if fv.value > 0:
+                out.setdefault(cik, (fv.value, fv.end))
+    return out
+
+
+def _quarter_trend(
+    qs: Mapping[tuple[int, int], tuple[float | None, float | None]] | None,
+) -> dict[str, Any]:
+    """Latest quarter's sales vs the same quarter a year earlier, and its profit per $1."""
+    none = {"qp": None, "qg": None, "qom": None, "qom0": None}
+    if not qs:
+        return none
+    for y, q in sorted(qs, reverse=True):
+        rev, oi = qs[(y, q)]
+        then_rev, then_oi = qs.get((y - 1, q), (None, None))
+        if not rev or rev <= 0 or not then_rev or then_rev <= 0:
+            continue
+        return {
+            "qp": f"{y}Q{q}",
+            "qg": round((rev / then_rev - 1) * 100, 1),
+            "qom": round(oi / rev * 100, 1) if oi is not None else None,
+            "qom0": round(then_oi / then_rev * 100, 1) if then_oi is not None else None,
+        }
+    return none
+
+
+def _size(close: float | None, shares: tuple[float, date] | None, splits: Mapping[date, float],
+          revenue: float | None) -> dict[str, Any]:  # fmt: skip
+    """Market value (price x shares) and price per $1 of yearly sales. Skipped when a stock split
+    came after the share count's report, since the count would be in old (pre-split) shares."""
+    if close is None or shares is None or any(d > shares[1] for d in splits):
+        return {"mcap": None, "ps": None}
+    mcap = close * shares[0]
+    return {
+        "mcap": round(mcap),
+        "ps": round(mcap / revenue, 2) if revenue and revenue > 0 else None,
+    }
+
+
 def _pct(x: float | None) -> float | None:
     return None if x is None else round(x * 100, 1)
 
@@ -186,6 +282,8 @@ def build_research(
     # One daily request per ticker covers the quote, dividends, splits and year-end prices.
     start = date(now.year - LONG_YEARS, 1, 1)
     hist = _batches(prices, [r.symbol for r in big], start, last_session, errors)
+    quarters = _quarterly(svc.provider, now, errors)
+    shares = _shares(svc.provider, years, errors)
     companies: list[dict[str, Any]] = []
     for r in big:
         h = hist.get(r.symbol)
@@ -195,7 +293,12 @@ def build_research(
         year_end = _year_end(h.closes, now.year) if h is not None else {}
         v = valuation(_eps(facts[r.symbol], years), year_end, close,
                       cfg.screen.valuation_pe_multiple, h.splits if h else None)  # fmt: skip
-        companies.append(_company(r, judge(r, v, cfg.screen), v, h, now))
+        row = _company(r, judge(r, v, cfg.screen), v, h, now)
+        cik = tickers[r.symbol][0]
+        row |= _quarter_trend(quarters.get(cik))
+        rev = r.metrics.revenue.get(r.metrics.latest_year or 0)
+        row |= _size(close, shares.get(cik), h.splits if h else {}, rev)
+        companies.append(row)
     with_sales = {r.symbol for r in results if r.metrics.latest_year is not None}
     core = {f.symbol for f in cfg.plan.core_funds}
     names = {f.symbol: f.name or f.symbol for f in cfg.plan.core_funds}

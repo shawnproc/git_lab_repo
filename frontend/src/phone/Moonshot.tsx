@@ -1,10 +1,11 @@
 // The Moonshot side's screens: Bets (with the risk budget), Sell & taxes, and Learn.
-import { type SubmitEvent, useState } from 'react'
+import { type SubmitEvent, useEffect, useState } from 'react'
 import { Card, Explain, PageHeader } from '../components/ui'
 import { fmtDay, fmtMoney, fmtPct, fmtShares, fmtSignedMoney, gainClass } from '../format'
 import { useLive } from './LiveContext'
 import { betProblems, budgetOf, MAX_BET_SHARE, MAX_BUDGET_PCT, type MoonBet, type Moonshot, milestone, multiple } from './moonshot'
-import { BIG_MIN, FAST_GROWTH, MARGIN_DROP, type RadarRow, SMALL_MAX, underTheRadar, warningSigns } from './radar'
+import { type Dossier, fetchDossier } from './dossier'
+import { BIG_MIN, FAST_GROWTH, INSIDER_MIN, insidersBuying, MARGIN_DROP, type RadarRow, SMALL_MAX, underTheRadar, warningSigns } from './radar'
 import { fmtBig, type Research } from './research'
 import { VerdictBadge } from './Search'
 import { newId } from './store'
@@ -347,6 +348,14 @@ function RadarList({ rows, empty }: { rows: RadarRow[]; empty: string }) {
 export function Radar({ research, error }: { research: Research | null; error: string | null }) {
   const rising = research ? underTheRadar(research.companies) : []
   const fading = research ? warningSigns(research.companies) : []
+  const [dossier, setDossier] = useState<Dossier | null>(null)
+  const [dErr, setDErr] = useState<string | null>(null)
+  useEffect(() => {
+    let off = false
+    fetchDossier().then((d) => { if (!off) setDossier(d) }, (e: unknown) => { if (!off) setDErr(e instanceof Error ? e.message : 'Insider data isn’t available.') })
+    return () => { off = true }
+  }, [])
+  const buying = research && dossier ? insidersBuying(research.companies, dossier) : []
   return (
     <div className="space-y-5">
       <PageHeader title="Radar" intro="Lesser-known companies on the rise, and famous ones showing cracks, straight from their reports." />
@@ -357,6 +366,10 @@ export function Radar({ research, error }: { research: Research | null; error: s
           <Card title="Under the radar">
             <p className="muted mb-2 text-xs">Companies with under {fmtBig(SMALL_MAX)} in yearly sales whose sales grew over {String(FAST_GROWTH)}% a year, and whose profits are improving or that already make cash. Fastest first.</p>
             <RadarList rows={rising} empty="None match today." />
+          </Card>
+          <Card title="Insiders buying">
+            <p className="muted mb-2 text-xs">Executives and directors who bought their own company’s stock on the open market in the last {String(dossier?.window_days ?? 90)} days: several at once first, then over {fmtMoney(INSIDER_MIN, false)}. From SEC Form 4 filings.</p>
+            {dErr ? <p className="muted text-sm">{dErr}</p> : !dossier ? <p className="muted text-sm">Loading insider filings…</p> : <RadarList rows={buying} empty={`None yet in the ${String(dossier.days.length)} filing days read so far.`} />}
           </Card>
           <Card title="Warning signs">
             <p className="muted mb-2 text-xs">Household names (over {fmtBig(BIG_MIN)} in sales) whose sales shrank last year, or whose profit per $1 of sales fell by {String(MARGIN_DROP)}¢ or more in two years.</p>
