@@ -85,6 +85,16 @@ history on the **Today** chart (with "you added $X · the market moved $Y").
   paste it in Search → Live prices. Search and your watchlist then show the price right now,
   refreshed every minute while the app is open. The key stays on that phone only (not in the
   code, the public data or backups). Buy amounts always use the last close.
+- **Moonshot side** (switch at the top: Steady · Moonshot): for small, high-risk bets you make
+  yourself, like a tiny company or a startup. It opens only after a 4-point risk checklist. You
+  pick a risk budget of 1–10% of everything you have (10% is a hard ceiling), and no single bet can
+  be more than a quarter of that budget; the app refuses to log a bet that breaks a limit. Bets
+  show how many "x" they're up or down, days until they count as long-term for taxes, and plain
+  notes at milestones. **Sell & taxes** shows what a sale brings in, the estimated federal tax
+  (2026 IRS numbers, Single or Married filing jointly), what you'd save by waiting until it's
+  long-term, and how many shares would take your original money back out. **Learn risk** covers
+  why 16x is rare, how startup investing works, and how stock taxes work. It never tells you what
+  to buy; the Steady side's plan is untouched.
 - **On the PC app too:** the **Search** tab in the PC app uses the same daily search data
   (downloaded from your GitHub Pages site and kept on the PC). The PC's watchlist is saved in the
   PC app's own database, separate from the phone's, and included Good fits join the PC's plan and

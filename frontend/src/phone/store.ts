@@ -3,6 +3,7 @@
 // iCloud Drive / Files. Every load (including restoring a backup) is strictly validated.
 import type { Entry } from './logic'
 import type { Trade } from './robinhood'
+import { emptyMoonshot, type Moonshot, parseMoonshot } from './moonshot'
 import { CADENCES, type Schedule } from './schedule'
 
 const KEY = 'keystone.phone.v1'
@@ -40,9 +41,10 @@ export interface PhoneData {
   values_as_of: string | null // when you last updated those values
   entries: Entry[] // the wall
   watchlist: WatchItem[] // companies saved from Search
+  moonshot: Moonshot // the high-risk side: its budget, checklist and bets
 }
 
-export const empty = (): PhoneData => ({ version: 1, holdings: {}, shares: {}, trades: [], schedule: null, core_pct: null, last_backup_at: null, values_as_of: null, entries: [], watchlist: [] })
+export const empty = (): PhoneData => ({ version: 1, holdings: {}, shares: {}, trades: [], schedule: null, core_pct: null, last_backup_at: null, values_as_of: null, entries: [], watchlist: [], moonshot: emptyMoonshot() })
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -122,7 +124,7 @@ export function parseData(raw: unknown): PhoneData {
     return { symbol, added_at, added_price, verdict_at_add, include }
   })
   if (watchlist.filter((w) => w.include).length > MAX_INCLUDED) throw new Error('The backup’s watchlist is damaged.')
-  return { version: 1, holdings, shares, trades, schedule, core_pct: corePct as number | null, last_backup_at: lastBackup, values_as_of: asOf, entries, watchlist }
+  return { version: 1, holdings, shares, trades, schedule, core_pct: corePct as number | null, last_backup_at: lastBackup, values_as_of: asOf, entries, watchlist, moonshot: parseMoonshot(raw.moonshot) }
 }
 
 export function load(): PhoneData {
