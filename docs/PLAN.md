@@ -57,7 +57,7 @@ data, educational only.
       Charts stay in the PC app. If Yahoo blocks GitHub's servers, prices show "no price today"
       and the app still works from the typed-in values.
 - [x] **Search, watchlist, live prices:** the daily job also writes `research.json` (public):
-      every SEC filer with at least `research_min_revenue_usd` (default $1B) of latest yearly
+      every SEC filer with at least `research_min_revenue_usd` (default $250M, so lesser-known companies are in) of latest yearly
       sales, screened with the plan's checks (`core/research.py` judge: fit / pricey / no /
       unknown; funds price-only), with one batched daily Yahoo request per ticker
       (`fetch_batch`, 6 years: quote, dividends, splits, year-end closes). Split-safe P/E: only

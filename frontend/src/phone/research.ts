@@ -29,6 +29,13 @@ export interface Company {
   pe_flag?: boolean
   pe_note?: string
   checks?: [string, CheckStatus, string][]
+  // Trend, from the SEC reports (percent): sales growth a year over 3 years and in the last
+  // year, cents of profit per $1 of sales now and two years ago, cash kept per $1 of sales.
+  g3?: number | null
+  g1?: number | null
+  om?: number | null
+  om0?: number | null
+  fcfm?: number | null
 }
 
 export interface Research {
@@ -71,7 +78,7 @@ export function parseResearch(raw: unknown): Research {
       y: num(o.y), rev: num(o.rev),
       close: close !== null && close > 0 ? close : null,
       chg: num(o.chg), day: typeof o.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.day) ? o.day : null,
-      dy: num(o.dy), pe: num(o.pe), pe_med: num(o.pe_med), pe_flag: o.pe_flag === true, pe_note: str(o.pe_note, 400),
+      dy: num(o.dy), g3: num(o.g3), g1: num(o.g1), om: num(o.om), om0: num(o.om0), fcfm: num(o.fcfm), pe: num(o.pe), pe_med: num(o.pe_med), pe_flag: o.pe_flag === true, pe_note: str(o.pe_note, 400),
       ...(checks ? { checks } : {}),
     })
   }

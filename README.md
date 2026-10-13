@@ -74,7 +74,7 @@ history on the **Today** chart (with "you added $X · the market moved $Y").
   Drive or a USB thumb drive. Today reminds you every 30 days.
 - **Search** (Search tab): type a company or ticker (Apple, AAPL) to see its price, yearly sales,
   dividend, a price check and the plan's 5 quality checks, with a verdict: **Good fit**, **Good
-  business, pricey right now** or **Not a fit**. Covers every US company with over $1 billion in
+  business, pricey right now** or **Not a fit**. Covers every US company with at least $250 million in
   yearly sales, rebuilt every weekday evening. Verdicts measure a company against the plan's
   rules; they are not predictions or advice.
 - **Watchlist** (Search tab): save any company to follow it: price since you saved it, and a
@@ -95,6 +95,13 @@ history on the **Today** chart (with "you added $X · the market moved $Y").
   long-term, and how many shares would take your original money back out. **Learn risk** covers
   why 16x is rare, how startup investing works, and how stock taxes work. It never tells you what
   to buy; the Steady side's plan is untouched.
+- **Radar** (Moonshot side): two lists built from companies' own SEC reports each evening.
+  **Under the radar**: smaller, lesser-known companies (under $5 billion in sales) whose sales grow
+  25%+ a year and whose profits are improving or that already make cash. **Warning signs**:
+  household names (over $20 billion in sales) whose sales shrank last year or whose profit per $1
+  of sales fell 3¢+ in two years, the kind of slowdown that showed at Nike before the stock fell.
+  Facts, not predictions; tap a company for its full check-up. Search now covers every US company
+  with at least $250 million in yearly sales.
 - **On the PC app too:** the **Search** tab in the PC app uses the same daily search data
   (downloaded from your GitHub Pages site and kept on the PC). The PC's watchlist is saved in the
   PC app's own database, separate from the phone's, and included Good fits join the PC's plan and

@@ -76,6 +76,9 @@ def test_every_big_company_gets_a_verdict_not_just_the_plan(
     assert by["AAPL"]["close"] > 0 and by["AAPL"]["day"] == "2026-10-02"
     assert by["AAPL"]["dy"] is not None  # a $0.50 dividend in the last year
     assert r["verdicts"]["no"] == "Not a fit"
+    # Trend numbers for the Moonshot radar, straight from the reports.
+    assert by["NVDA"]["g3"] == 60.0 and by["NVDA"]["g1"] == 60.0  # fast grower
+    assert by["NKE"]["g3"] == 1.0 and by["NKE"]["om"] < by["NKE"]["om0"]  # slowing, margins falling
 
 
 def test_small_companies_are_left_out(clock: FakeClock, calendar: MarketCalendar) -> None:

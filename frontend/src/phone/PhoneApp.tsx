@@ -18,7 +18,7 @@ import { fetchResearch, type Research } from './research'
 import { phoneWatch, SearchPage } from './Search'
 import { LiveProvider, useLive } from './LiveContext'
 import { LiveNow } from './LiveNow'
-import { MoonBets, MoonLearn, SellTaxes } from './Moonshot'
+import { MoonBets, MoonLearn, Radar, SellTaxes } from './Moonshot'
 import type { Moonshot } from './moonshot'
 import { askPersistent, load, newId, type PhoneData, save } from './store'
 
@@ -756,11 +756,12 @@ const TABS = [
   { id: 'plan', label: 'Plan', icon: 'M3 20h18M4 20v-5h7v5M13 20v-9h7v9M8 15V9h8v2' },
   { id: 'learn', label: 'Learn', icon: 'M4 5h7a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H4zM20 5h-6a3 3 0 0 0-3 3' },
   // The Moonshot side
+  { id: 'radar', label: 'Radar', icon: 'M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 12m-5 0a5 5 0 1 0 10 0a5 5 0 1 0-10 0M12 12l6-6' },
   { id: 'moon', label: 'Bets', icon: 'M12 2c3 3 4.5 6.5 4.5 10.5L12 17l-4.5-4.5C7.5 8.5 9 5 12 2zM9 17l-2 5 5-2M15 17l2 5-5-2M12 9.5a1.5 1.5 0 1 0 0 .01' },
   { id: 'sell', label: 'Sell & tax', icon: 'M4 7h16M4 12h10M4 17h6M17 14l3 3-3 3M20 17h-6' },
   { id: 'moonlearn', label: 'Learn risk', icon: 'M12 3l9 16H3zM12 10v4M12 17v.01' },
 ] as const
-const MOON_TABS = new Set<string>(['moon', 'sell', 'moonlearn'])
+const MOON_TABS = new Set<string>(['radar', 'moon', 'sell', 'moonlearn'])
 type TabId = (typeof TABS)[number]['id']
 const ALIAS: Record<string, TabId> = { home: 'today', money: 'invest', wall: 'invest' }
 
@@ -831,7 +832,7 @@ export default function PhoneApp() {
       <div className="mx-auto mt-4 w-full max-w-2xl px-4">
         <div role="group" aria-label="Side of the app" className="side-switch grid grid-cols-2 p-1 text-sm font-bold">
           <a href="#/today" aria-current={side === 'steady' ? 'true' : undefined}>Steady <span className="font-normal opacity-70">· long-term</span></a>
-          <a href="#/moon" aria-current={side === 'moon' ? 'true' : undefined}>Moonshot <span className="font-normal opacity-70">· high risk</span></a>
+          <a href="#/radar" aria-current={side === 'moon' ? 'true' : undefined}>Moonshot <span className="font-normal opacity-70">· high risk</span></a>
         </div>
       </div>
       <LiveProvider symbols={liveSymbols}>
@@ -848,6 +849,7 @@ export default function PhoneApp() {
               : null)} />
         )}
         {snap && tab === 'plan' && <PlanPage snap={snap} data={data} update={update} />}
+        {tab === 'radar' && <Radar research={research} error={researchError} />}
         {tab === 'moon' && <MoonBets m={data.moonshot} set={setMoon} planValue={planValue} closes={closes} />}
         {tab === 'sell' && <SellTaxes m={data.moonshot} closes={closes} />}
         {tab === 'moonlearn' && <MoonLearn />}

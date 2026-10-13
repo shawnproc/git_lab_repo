@@ -4,6 +4,9 @@ import { Card, Explain, PageHeader } from '../components/ui'
 import { fmtDay, fmtMoney, fmtPct, fmtShares, fmtSignedMoney, gainClass } from '../format'
 import { useLive } from './LiveContext'
 import { betProblems, budgetOf, MAX_BET_SHARE, MAX_BUDGET_PCT, type MoonBet, type Moonshot, milestone, multiple } from './moonshot'
+import { BIG_MIN, FAST_GROWTH, MARGIN_DROP, type RadarRow, SMALL_MAX, underTheRadar, warningSigns } from './radar'
+import { fmtBig, type Research } from './research'
+import { VerdictBadge } from './Search'
 import { newId } from './store'
 import { estimateSale, FILING_WORDS, type FilingStatus, LOSS_LIMIT, longTermFrom, sharesToRecoverCost, TABLES, TAX_SOURCE, TAX_SOURCE_URL, TAX_YEAR } from './tax'
 
@@ -316,6 +319,58 @@ export function MoonLearn() {
           <li><b>No borrowing.</b> This side doesn’t track margin or options: with borrowed money you can lose more than you put in.</li>
           <li><b>The plan stays separate.</b> Nothing here changes the Steady side’s buy days or amounts.</li>
         </ul>
+      </Card>
+    </div>
+  )
+}
+
+function RadarList({ rows, empty }: { rows: RadarRow[]; empty: string }) {
+  if (rows.length === 0) return <p className="muted text-sm">{empty}</p>
+  return (
+    <ul className="divide-y divide-[var(--line)]">
+      {rows.map(({ c, why }) => (
+        <li key={c.s}>
+          <a href={`#/search?s=${encodeURIComponent(c.s)}`} className="block py-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-mono font-bold">{c.s}</span>
+              <VerdictBadge v={c.v} />
+            </div>
+            <div className="muted truncate text-xs">{c.n} · {fmtBig(c.rev)} a year in sales</div>
+            <div className="mt-1 text-sm">{why}.</div>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+export function Radar({ research, error }: { research: Research | null; error: string | null }) {
+  const rising = research ? underTheRadar(research.companies) : []
+  const fading = research ? warningSigns(research.companies) : []
+  return (
+    <div className="space-y-5">
+      <PageHeader title="Radar" intro="Lesser-known companies on the rise, and famous ones showing cracks, straight from their reports." />
+      {error && <Card><p className="text-sm">{error}</p></Card>}
+      {!research && !error && <p className="muted">Loading the company list…</p>}
+      {research && (
+        <>
+          <Card title="Under the radar">
+            <p className="muted mb-2 text-xs">Companies with under {fmtBig(SMALL_MAX)} in yearly sales whose sales grew over {String(FAST_GROWTH)}% a year, and whose profits are improving or that already make cash. Fastest first.</p>
+            <RadarList rows={rising} empty="None match today." />
+          </Card>
+          <Card title="Warning signs">
+            <p className="muted mb-2 text-xs">Household names (over {fmtBig(BIG_MIN)} in sales) whose sales shrank last year, or whose profit per $1 of sales fell by {String(MARGIN_DROP)}¢ or more in two years.</p>
+            <RadarList rows={fading} empty="None today." />
+          </Card>
+        </>
+      )}
+      <Card>
+        <Explain title="How should I use the radar?">
+          <p><b>It shows facts, not predictions.</b> Every number comes from the company’s own yearly SEC report, updated each evening. A fast grower can still be a terrible stock if its price already assumes years of growth, and a slipping giant can recover.</p>
+          <p><b>Under the radar</b> is where big long-term winners often start: small, growing fast, and getting more profitable. Most still won’t make it, and small stocks swing hard. That’s what the Moonshot budget is for.</p>
+          <p><b>Warning signs</b> are the clues that are public before most people notice: sales that stop growing and a shrinking profit per $1 of sales, like the slowdown you saw at Nike. If you own one, it’s a reason to look closer, not an order to sell.</p>
+          <p>Tap any company to see its full check-up in Search. Reports come out once a year, so the radar changes slowly.</p>
+        </Explain>
       </Card>
     </div>
   )

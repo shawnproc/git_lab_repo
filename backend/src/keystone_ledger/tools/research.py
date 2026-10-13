@@ -115,6 +115,25 @@ def _year_end(closes: Any, before_year: int) -> dict[int, float]:
     return out
 
 
+def _pct(x: float | None) -> float | None:
+    return None if x is None else round(x * 100, 1)
+
+
+def _trend(m: Any) -> dict[str, Any]:
+    """Growth and profit trend for the Moonshot radar: numbers from the SEC reports only."""
+    y = m.latest_year
+    prev = m.revenue.get(y - 1) if y is not None else None
+    last = m.revenue.get(y) if y is not None else None
+    g1 = (last / prev - 1) if last and prev and prev > 0 else None
+    return {
+        "g3": _pct(m.revenue_cagr),  # sales growth, % a year (over the plan's growth window)
+        "g1": _pct(g1),  # sales growth in the latest year, %
+        "om": _pct(m.operating_margin),  # cents of profit per $1 of sales, latest year
+        "om0": _pct(m.operating_margin_prior),  # the same, two years earlier
+        "fcfm": _pct(m.fcf_margin),  # cash kept per $1 of sales
+    }
+
+
 def _company(r: Any, j: Any, v: Any, h: Any, now: datetime) -> dict[str, Any]:
     close = prev = day = None
     if h is not None and len(h.closes):
@@ -140,6 +159,7 @@ def _company(r: Any, j: Any, v: Any, h: Any, now: datetime) -> dict[str, Any]:
         "pe_flag": v.flagged,
         "pe_note": v.detail,
         "checks": [[c.label, c.status, c.detail] for c in r.checks],
+        **_trend(r.metrics),
     }
 
 
