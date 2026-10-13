@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import re
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
@@ -57,7 +58,10 @@ class AuthStatusOut(BaseModel):
     csrf_token: str | None = None
 
 
-def _set_cookie(response: Response, issued: IssuedSession, secure: bool) -> None:
+def _set_cookie(response: Response, issued: IssuedSession, secure: bool, now: datetime) -> None:
+    # Max-Age (a lifetime in seconds) rather than a calendar date: the browser counts it from
+    # when it gets the cookie, so a device whose clock is off still keeps the session for the
+    # right length of time. The server checks the real expiry on every request anyway.
     response.set_cookie(
         SESSION_COOKIE,
         issued.token,
@@ -65,7 +69,7 @@ def _set_cookie(response: Response, issued: IssuedSession, secure: bool) -> None
         secure=secure,
         samesite="strict",
         path="/",
-        expires=issued.expires_at,
+        max_age=max(0, int((issued.expires_at - now).total_seconds())),
     )
 
 
@@ -106,7 +110,7 @@ def setup(
         raise HTTPException(422, str(exc)) from exc
     with contextlib.suppress(FileNotFoundError):
         state.settings.setup_token_path.unlink()
-    _set_cookie(response, issued, state.settings.https)
+    _set_cookie(response, issued, state.settings.https, state.auth.clock())
     return AuthStatusOut(
         setup_required=False,
         authenticated=True,
@@ -132,7 +136,7 @@ def login(body: LoginIn, request: Request, response: Response, state: StateDep) 
             db.commit()
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
         db.commit()
-    _set_cookie(response, issued, state.settings.https)
+    _set_cookie(response, issued, state.settings.https, state.auth.clock())
     return AuthStatusOut(
         setup_required=False,
         authenticated=True,
@@ -163,7 +167,7 @@ def change_password(
         )
     except AuthError as exc:
         raise HTTPException(422, str(exc)) from exc
-    _set_cookie(response, issued, state.settings.https)
+    _set_cookie(response, issued, state.settings.https, state.auth.clock())
     return AuthStatusOut(
         setup_required=False,
         authenticated=True,

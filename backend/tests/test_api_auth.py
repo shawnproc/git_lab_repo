@@ -40,6 +40,9 @@ def test_setup_flow_and_cookie_flags(client: TestClient, setup_token: str, state
     assert "httponly" in cookie
     assert "samesite=strict" in cookie
     assert "secure" not in cookie  # plain http on loopback
+    # A lifetime, not a calendar date, so a device with a wrong clock (or these tests, which run
+    # on a fake clock) never drops the session early. 7 days = the absolute session limit.
+    assert "max-age=604800" in cookie and "expires=" not in cookie
     assert not state.settings.setup_token_path.exists()  # one-time token is consumed
     # Second setup refused.
     r2 = client.post(
