@@ -321,3 +321,12 @@ describe('iPhone app', () => {
     expect(screen.getByRole('link', { name: 'Invest' })).toHaveAttribute('aria-current', 'page')
   })
 })
+
+describe('live status on Today', () => {
+  afterEach(() => { vi.unstubAllGlobals(); window.location.hash = ''; localStorage.clear() })
+
+  it('says how to turn live prices on when this device has no key', async () => {
+    start('#/today')
+    expect(await screen.findByTestId('ticker-live-status')).toHaveTextContent(/add your free Finnhub key/)
+  })
+})
