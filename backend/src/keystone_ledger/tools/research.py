@@ -211,6 +211,35 @@ def _size(close: float | None, shares: tuple[float, date] | None, splits: Mappin
     }
 
 
+CHART_WEEKS = 104  # two years of weekly closes per company, for the Search chart
+
+
+def weekly_charts(closes: Mapping[str, Any], weeks: int = CHART_WEEKS) -> dict[str, dict[str, Any]]:
+    """{letter: {"days": [...], "closes": {SYM: [close or None, ...]}}}: each company's last close
+    of every week, on one shared week grid. A week a company didn't trade stays None, never
+    filled in. Split into one small file per first letter so the phone loads only what it needs."""
+    per_sym: dict[str, dict[tuple[int, int], tuple[date, float]]] = {}
+    week_day: dict[tuple[int, int], date] = {}
+    for sym, series in closes.items():
+        wk: dict[tuple[int, int], tuple[date, float]] = {}
+        for d, v in series.items():
+            key = (d.isocalendar().year, d.isocalendar().week)
+            wk[key] = (d, float(v))  # ascending, so the week's last close wins
+            if key not in week_day or d > week_day[key]:
+                week_day[key] = d
+        per_sym[sym] = wk
+    keys = sorted(week_day)[-weeks:]
+    days = [week_day[k].isoformat() for k in keys]
+    out: dict[str, dict[str, Any]] = {}
+    for sym, wk in sorted(per_sym.items()):
+        row = [round(wk[k][1], 4) if k in wk else None for k in keys]
+        if sum(v is not None for v in row) < 2:
+            continue
+        letter = sym[0] if sym[0].isalpha() else "_"
+        out.setdefault(letter, {"schema": 1, "days": days, "closes": {}})["closes"][sym] = row
+    return out
+
+
 def _pct(x: float | None) -> float | None:
     return None if x is None else round(x * 100, 1)
 
@@ -285,11 +314,14 @@ def build_research(
     quarters = _quarterly(svc.provider, now, errors)
     shares = _shares(svc.provider, years, errors)
     companies: list[dict[str, Any]] = []
+    chart_closes: dict[str, Any] = {}
     for r in big:
         h = hist.get(r.symbol)
         if h is not None:
             h = h.upto(last_session)
         close = float(h.closes.iloc[-1]) if h is not None and len(h.closes) else None
+        if h is not None and len(h.closes):
+            chart_closes[r.symbol] = h.closes
         year_end = _year_end(h.closes, now.year) if h is not None else {}
         v = valuation(_eps(facts[r.symbol], years), year_end, close,
                       cfg.screen.valuation_pe_multiple, h.splits if h else None)  # fmt: skip
@@ -321,6 +353,7 @@ def build_research(
         "min_revenue_usd": floor,
         "verdicts": dict(VERDICT_WORDS),
         "companies": companies,
+        "_charts": weekly_charts(chart_closes),  # written as charts/<letter>.json, not in this file
         "errors": errors[:20],
     }
 
@@ -362,6 +395,7 @@ def write_research(research: dict[str, Any] | None, errors: list[str], out: Path
                    previous_url: str | None) -> dict[str, Any]:  # fmt: skip
     """Write `research` if it validates, else the last good published one (if any). Returns the
     status that goes into status.json."""
+    charts = research.pop("_charts", None) if research is not None else None
     errors = errors + (validate_research(research) if research is not None else [])
     good = research if research is not None and not errors else None
     kept = False
@@ -371,6 +405,13 @@ def write_research(research: dict[str, Any] | None, errors: list[str], out: Path
     if good is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(good, separators=(",", ":"), ensure_ascii=False), "utf-8")
+    if charts and good is research:
+        folder = out.parent / "charts"
+        folder.mkdir(parents=True, exist_ok=True)
+        for letter, chart in charts.items():
+            (folder / f"{letter}.json").write_text(
+                json.dumps(chart, separators=(",", ":")), "utf-8"
+            )
     if errors:
         what = "kept the last good one" if kept else "none to keep"
         log.error("research: NOT published (%s): %s", what, "; ".join(errors))

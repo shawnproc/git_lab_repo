@@ -84,6 +84,10 @@ data, educational only.
       vs a year earlier (frames CY####Q#) and size (diluted shares x close; skipped after a split).
       Phone: `DossierCard` (5 parts), Finnhub ratings/news on the owner's key, Radar "Insiders
       buying".
+- [x] **A chart for every Search company:** the research build already fetches 6 years of daily
+      closes; it now also writes `charts/<letter>.json` (two years of weekly closes on one shared
+      week grid; missing weeks stay null). The phone loads one letter's file when a company opens
+      (plan tickers keep their daily one-year chart).
 
 ## Rules (all in `config/keystone.toml`)
 | Feature | Rule |

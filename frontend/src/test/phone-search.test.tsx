@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchLiveQuote, LiveError, type LiveRound, liveValueSeries, parseQuote, validKey } from '../phone/live'
 import { includedPicks, type Snapshot, targetsFor } from '../phone/model'
 import PhoneApp from '../phone/PhoneApp'
+import { parseCharts, resetChartCache } from '../phone/charts'
 import { parseResearch, type Research, searchCompanies } from '../phone/research'
 import { empty, MAX_INCLUDED, parseData, type PhoneData } from '../phone/store'
 import { learn } from './fixtures'
@@ -169,7 +170,7 @@ describe('Search tab', () => {
     fireEvent.click(screen.getByLabelText('Include in my buy days'))
     const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as PhoneData
     expect(saved.watchlist).toEqual([expect.objectContaining({ symbol: 'AAPL', added_price: 255.5, verdict_at_add: 'fit', include: true })])
-    expect(spy.mock.calls.every((c) => /\/(snapshot|status|research|dossier)\.json$/.test(c[0]))).toBe(true) // no key: no live calls
+    expect(spy.mock.calls.every((c) => /\/(snapshot|status|research|dossier|charts\/[A-Z_])\.json$/.test(c[0]))).toBe(true) // no key: no live calls
   })
 
   it('shows a verdict change and pauses a pick that is no longer a fit', async () => {
@@ -214,5 +215,43 @@ describe('live prices on Today', () => {
     const rounds: LiveRound[] = [{ at: 'a', prices: { VTI: 320 } }, { at: 'b', prices: { VTI: 321, NEW: 10 } }]
     expect(liveValueSeries({ VTI: 2, VXUS: 1 }, { VXUS: 70 }, rounds).map((p) => p.value)).toEqual([710, 712])
     expect(liveValueSeries({ ZZZ: 1 }, {}, rounds)).toEqual([]) // nothing priced: no line, not $0
+  })
+})
+
+describe('company charts', () => {
+  beforeEach(() => { localStorage.clear(); resetChartCache() })
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.location.hash = '' })
+
+  it('validates chart files and skips gaps instead of filling them', () => {
+    const c = parseCharts({ schema: 1, days: ['2026-09-25', '2026-10-02', '2026-10-09'], closes: { APA: [20, null, 22], BAD: [1, 2], 'x<': [1, 2, 3], ONE: [5, null, null] } })
+    expect(c.APA).toEqual([{ day: '2026-09-25', value: 20 }, { day: '2026-10-09', value: 22 }])
+    expect(Object.keys(c)).toEqual(['APA']) // wrong length, bad ticker and a single point are dropped
+    expect(() => parseCharts({ schema: 2 })).toThrow()
+  })
+
+  it('shows a weekly chart for a company outside the plan', async () => {
+    window.location.hash = '#/search?s=APA'
+    const charts = { schema: 1, days: ['2026-09-25', '2026-10-02', '2026-10-09'], closes: { APA: [20, 21, 22] } }
+    const spy = vi.fn((url: string) => {
+      const files: Record<string, unknown> = { 'snapshot.json': snapshot, 'research.json': research, 'A.json': charts }
+      const name = url.split('/').pop() ?? ''
+      return Promise.resolve(name in files ? new Response(JSON.stringify(files[name]), { status: 200 }) : new Response('', { status: 404 }))
+    })
+    vi.stubGlobal('fetch', spy)
+    render(<PhoneApp />)
+    expect(await screen.findByText(/Weekly closes/)).toBeInTheDocument()
+    expect(screen.getByLabelText("Line chart of APA's closing price")).toBeInTheDocument()
+    expect(spy.mock.calls.some((c) => c[0] === './charts/A.json')).toBe(true)
+  })
+
+  it('says so when a company has no history', async () => {
+    window.location.hash = '#/search?s=NVDA'
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      const files: Record<string, unknown> = { 'snapshot.json': snapshot, 'research.json': research }
+      const name = url.split('/').pop() ?? ''
+      return Promise.resolve(name in files ? new Response(JSON.stringify(files[name]), { status: 200 }) : new Response('', { status: 404 }))
+    }))
+    render(<PhoneApp />)
+    expect(await screen.findByText(/No price history for this one yet/)).toBeInTheDocument()
   })
 })

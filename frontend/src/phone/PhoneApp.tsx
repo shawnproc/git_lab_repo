@@ -14,6 +14,7 @@ import { buyStatus, CADENCE_WORDS, CADENCES, type Cadence, defaultSchedule, type
 import { BackupCard, BackupReminder, CompanyStatus, FreshnessBar, OverlapCard, SleeveCard, SplitSetting, TopThree } from './Insights'
 import { freshnessOf, type Snapshot, skipFor, targetsFor } from './model'
 import type { Freshness, RefreshStatus } from './stale'
+import { fetchChart } from './charts'
 import { fetchResearch, type Research } from './research'
 import { phoneWatch, SearchPage } from './Search'
 import { LiveProvider, useLive } from './LiveContext'
@@ -297,6 +298,29 @@ function TodaysMove({ snap, data, update, fresh }: { snap: Snapshot; data: Phone
         <p>The amount you put in matters far more than the day you pick: {fmtMoney(schedule.amount)} {schedule.cadence === 'weekly' ? 'every week' : schedule.cadence === 'biweekly' ? 'every 2 weeks' : schedule.cadence === 'semimonthly' ? 'twice a month' : 'a month'} is about <b>{fmtMoney(schedule.amount * ({ weekly: 52, biweekly: 26, semimonthly: 24, monthly: 12 } as const)[schedule.cadence], false)}</b> a year of new money.</p>
       </Explain>
     </Card>
+  )
+}
+
+/** A company's price line: a year of daily closes for the plan's tickers, else two years of
+ * weekly closes (every Search company). Shows plainly when there's no history. */
+function CompanyChart({ symbol, snap, theme }: { symbol: string; snap: Snapshot | null; theme: Theme }) {
+  const daily = snap && historyOf(snap).closes[symbol] ? tickerSeries(symbol, historyOf(snap)) : null
+  const [weekly, setWeekly] = useState<Point[] | null>(null)
+  const needWeekly = daily === null || daily.length < 2
+  useEffect(() => {
+    if (!needWeekly) return
+    let off = false
+    fetchChart(symbol).then((p) => { if (!off) setWeekly(p) }, () => { if (!off) setWeekly([]) })
+    return () => { off = true }
+  }, [symbol, needWeekly])
+  const series = needWeekly ? weekly : daily
+  if (series === null) return <p className="muted text-xs">Loading the price chart…</p>
+  if (series.length < 2) return <p className="muted text-xs">No price history for this one yet.</p>
+  return (
+    <div>
+      <RangeChart series={series} theme={theme} eyebrow={`${symbol} price`} label={`Line chart of ${symbol}'s closing price`} />
+      {needWeekly && <p className="muted mt-1 text-xs">Weekly closes (each week’s last price), updated every weekday evening.</p>}
+    </div>
   )
 }
 
@@ -844,9 +868,7 @@ export default function PhoneApp() {
         {snap && tab === 'invest' && <Invest snap={snap} data={data} update={update} fresh={freshnessOf(snap, status, now)} />}
         {tab === 'search' && (
           <SearchPage research={research} error={researchError} watch={phoneWatch(data, update)}
-            chart={(sym) => (snap && historyOf(snap).closes[sym]
-              ? <RangeChart series={tickerSeries(sym, historyOf(snap))} theme={theme} eyebrow={`${sym} price`} label={`Line chart of ${sym}'s closing price`} />
-              : null)} />
+            chart={(sym) => <CompanyChart key={sym} symbol={sym} snap={snap} theme={theme} />} />
         )}
         {snap && tab === 'plan' && <PlanPage snap={snap} data={data} update={update} />}
         {tab === 'radar' && <Radar research={research} error={researchError} />}
