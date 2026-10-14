@@ -200,6 +200,28 @@ function RangeChart({ series, theme, eyebrow, label, defaultRange = '1Y' }: {
   )
 }
 
+/** Each holding's dollars for one buy, with its long-term target share and estimated shares. */
+function SplitList({ allocations, quotes, targets }: { allocations: { symbol: string; amount: number }[]; quotes: Record<string, Quote>; targets: { symbol: string; target_pct: number }[] }) {
+  const pct = new Map(targets.map((t) => [t.symbol, t.target_pct]))
+  return (
+    <ol className="slip mt-3 space-y-2 px-4 pb-3">
+      {allocations.map((a) => {
+        const q = quotes[a.symbol]
+        const t = pct.get(a.symbol)
+        return (
+          <li key={a.symbol} className="flex items-end text-sm">
+            <span>Buy <b className="font-mono">{a.symbol}</b>
+              <span className="muted text-xs">{t !== undefined ? ` · target ${fmtPct(t, 1)} of your money` : ''}{q ? ` · ≈ ${fmtShares(a.amount / q.close)} sh` : ''}</span>
+            </span>
+            <span className="leader" aria-hidden />
+            <b className="font-mono">{fmtMoney(a.amount)}</b>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
 function TodaysMove({ snap, data, update, fresh }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void; fresh: Freshness }) {
   const today = localDay()
   const schedule = data.schedule ?? defaultSchedule(today)
@@ -269,18 +291,7 @@ function TodaysMove({ snap, data, update, fresh }: { snap: Snapshot; data: Phone
           {fresh.stale ? (
             <p role="alert" className="mt-3 border-l-4 border-[var(--color-warn)] p-3 text-sm">The amounts for each holding are hidden because the prices are out of date. Check back after the next update (weekday evenings), or buy your usual funds at your broker if you can’t wait.</p>
           ) : (<>
-          <ol className="slip mt-3 space-y-2 px-4 pb-3">
-            {split.allocations.map((a) => {
-              const q = quotes[a.symbol]
-              return (
-                <li key={a.symbol} className="flex items-end text-sm">
-                  <span>Buy <b className="font-mono">{a.symbol}</b>{q && <span className="muted text-xs"> ≈ {fmtShares(a.amount / q.close)} sh</span>}</span>
-                  <span className="leader" aria-hidden />
-                  <b className="font-mono">{fmtMoney(a.amount)}</b>
-                </li>
-              )
-            })}
-          </ol>
+          <SplitList allocations={split.allocations} quotes={quotes} targets={targets} />
           <p className="muted mt-2 text-xs">In your broker app, buy each one <b>in dollars</b>. Money goes to whatever is furthest below its target, so you never have to sell.{skip.size > 0 && ` Skipped for now (price well above its usual level): ${[...skip].join(', ')}.`}</p>
           <button type="button" className="btn mt-3 w-full" onClick={bought}>I bought these</button>
           </>)}
@@ -290,6 +301,13 @@ function TodaysMove({ snap, data, update, fresh }: { snap: Snapshot; data: Phone
           <div className="serif text-3xl font-bold">{justLogged ? '✓ Logged. Nice work.' : '✓ You’re done for now'}</div>
           <p className="mt-1 text-sm">Next buy day: <b>{fmtMonthDay(status.next)}</b> ({status.days_to_next === 1 ? 'tomorrow' : `in ${String(status.days_to_next)} days`}), {fmtMoney(schedule.amount)}.</p>
           <p className="muted mt-2 text-xs">Nothing to do today. Prices wiggle every day; your plan works on months and years. Checking in is fine, and acting on a wiggle is how people lose money.</p>
+          {!fresh.stale && split.allocations.length > 0 && (
+            <div className="mt-4">
+              <div className="eyebrow">How your next {fmtMoney(schedule.amount)} would split</div>
+              <SplitList allocations={split.allocations} quotes={quotes} targets={targets} />
+              <p className="muted mt-2 text-xs">A preview at today’s prices. On {fmtMonthDay(status.next)} it’s worked out again from that day’s prices and what you own then, so the amounts may shift a little.{skip.size > 0 && ` Skipped for now (price well above its usual level): ${[...skip].join(', ')}.`}</p>
+            </div>
+          )}
         </div>
       )}
       <Explain title="Why a schedule instead of “the best day”?">
