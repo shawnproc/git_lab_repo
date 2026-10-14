@@ -11,7 +11,7 @@ export const KIND_LABEL = {
   off_plan: 'Not in your plan',
 } as const
 
-function TargetCard({ t, basis }: { t: TargetRow; basis: number }) {
+function TargetCard({ t, basis, example }: { t: TargetRow; basis: number; example: boolean }) {
   return (
     <div className="border-t-4 bg-[var(--panel-2)] p-4" style={{ borderColor: t.kind === 'core' ? 'var(--stone-core)' : 'var(--stone-pick)' }}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -32,7 +32,7 @@ function TargetCard({ t, basis }: { t: TargetRow; basis: number }) {
           <div className="font-mono text-2xl font-bold">{fmtPct(t.target_pct)}</div>
         </div>
         <div>
-          <div className="eyebrow">Dollars (of {fmtMoney(basis, false)})</div>
+          <div className="eyebrow">{example ? `Example: of a pretend ${fmtMoney(basis, false)}` : `Dollars (of your ${fmtMoney(basis, false)})`}</div>
           <div className="font-mono text-2xl font-bold">{fmtMoney(t.target_value)}</div>
         </div>
       </div>
@@ -93,7 +93,7 @@ function ScreenRow({ r }: { r: ScreenResult }) {
   )
 }
 
-export function PlanView({ data }: { data: PlanData }) {
+export function PlanView({ data, moneyHref = '#/money' }: { data: PlanData; moneyHref?: string }) {
   const core = data.targets.filter((t) => t.kind === 'core')
   const stocks = data.targets.filter((t) => t.kind === 'stock')
   const corePct = core.reduce((a, t) => a + t.target_pct, 0)
@@ -103,11 +103,13 @@ export function PlanView({ data }: { data: PlanData }) {
     <div className="space-y-6">
       {data.basis_is_reference && (
         <p className="rounded-lg border border-[var(--line)] p-3 text-sm">
-          Dollar amounts below use a pretend <b>{fmtMoney(data.basis_value, false)}</b> because you haven’t entered your
-          investments yet. Once you do (on <a className="underline" href="#/money">My Money</a>), they use your real total.
+          <b>The dollar amounts are an example, not a suggestion to invest {fmtMoney(data.basis_value, false)}.</b> They show
+          how the percentages would split a pretend {fmtMoney(data.basis_value, false)}, because you haven’t entered what you own on
+          this device yet. Once you do (on <a className="underline" href={moneyHref}>{moneyHref === '#/invest' ? 'the Invest tab' : 'My Money'}</a>), they
+          use your real total. What to put in on each buy day is on the Today tab.
         </p>
       )}
-      <Card title="Your plan, built like a wall">
+      <Card title="Your plan at a glance">
         <FoundationWall targets={data.targets} />
         <p className="muted mt-3 text-sm">
           The bottom row is the foundation: big, steady index funds. The top row is the smaller set of hand-picked
@@ -118,7 +120,7 @@ export function PlanView({ data }: { data: PlanData }) {
       <Card title={`1. Safe foundation (core): ${fmtPct(corePct, 0)} of your money`}>
         <div className="grid gap-4 md:grid-cols-2">
           {core.map((t) => (
-            <TargetCard key={t.symbol} t={t} basis={data.basis_value} />
+            <TargetCard key={t.symbol} t={t} basis={data.basis_value} example={data.basis_is_reference} />
           ))}
         </div>
         <Explain title="What is the “core” and what are VTI and VXUS?">
@@ -150,7 +152,7 @@ export function PlanView({ data }: { data: PlanData }) {
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {stocks.map((t) => (
-              <TargetCard key={t.symbol} t={t} basis={data.basis_value} />
+              <TargetCard key={t.symbol} t={t} basis={data.basis_value} example={data.basis_is_reference} />
             ))}
           </div>
         )}
