@@ -199,3 +199,38 @@ def test_quarterly_trend_and_size() -> None:
     assert _size(50.0, shares, {}, 25_000_000.0) == {"mcap": 50_000_000, "ps": 2.0}
     # A split after the share count's report: the count is in old shares, so no size at all.
     assert _size(50.0, shares, {date(2026, 6, 1): 4.0}, 25_000_000.0) == {"mcap": None, "ps": None}
+
+
+def test_weekly_charts_share_one_grid_and_never_fill_gaps() -> None:
+    from keystone_ledger.tools.research import weekly_charts
+
+    days = [
+        date(2026, 9, 28),
+        date(2026, 10, 2),
+        date(2026, 10, 5),
+        date(2026, 10, 9),
+        date(2026, 10, 12),
+    ]
+    a = pd.Series([10.0, 11.0, 12.0, 13.0, 14.0], index=days)
+    b = pd.Series([5.0, 6.0], index=[days[0], days[4]])  # didn't trade in the middle week
+    out = weekly_charts({"AAPL": a, "BRK.B": b, "ONE": pd.Series([1.0], index=[days[0]])})
+    assert out["A"]["days"] == ["2026-10-02", "2026-10-09", "2026-10-12"]  # each week's last day
+    assert out["A"]["closes"]["AAPL"] == [11.0, 13.0, 14.0]
+    assert out["B"]["closes"]["BRK.B"] == [5.0, None, 6.0]  # the gap stays a gap
+    assert "O" not in out  # one point isn't a chart
+    assert len(weekly_charts({"AAPL": a}, weeks=2)["A"]["days"]) == 2
+
+
+def test_research_writes_chart_files_next_to_it(
+    tmp_path: Path, clock: FakeClock, calendar: MarketCalendar
+) -> None:
+    import json as _json
+
+    r = _build(clock, FakeBatchPrices(calendar))
+    st = write_research(r, [], tmp_path / "research.json", None)
+    assert st["ok"]
+    assert "_charts" not in _json.loads(
+        (tmp_path / "research.json").read_text()
+    )  # kept out of the big file
+    chart = _json.loads((tmp_path / "charts" / "A.json").read_text())
+    assert len(chart["days"]) == 104 and len(chart["closes"]["AAPL"]) == 104
