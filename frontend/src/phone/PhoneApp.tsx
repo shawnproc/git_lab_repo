@@ -790,7 +790,7 @@ function PlanPage({ snap, data, update }: { snap: Snapshot; data: PhoneData; upd
         <CompanyStatus snap={snap} targets={targets} />
         <OverlapCard snap={snap} targets={targets} />
       </div>
-      <PlanView data={plan} />
+      <PlanView data={plan} moneyHref="#/invest" />
     </div>
   )
 }
