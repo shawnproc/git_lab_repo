@@ -189,6 +189,10 @@ describe('iPhone app', () => {
     fireEvent.click(screen.getByRole('button', { name: 'I bought these' }))
     expect(await screen.findByText('✓ Logged. Nice work.')).toBeInTheDocument()
     expect(screen.getByText(/Next buy day:/)).toBeInTheDocument()
+    // Between buy days, the next buy's split is still shown, as a preview.
+    expect(screen.getByText('How your next $100.00 would split')).toBeInTheDocument()
+    expect(screen.getByText(/A preview at today’s prices/)).toBeInTheDocument()
+    expect(screen.getAllByText(/target 45\.0% of your money/).length).toBeGreaterThan(0)
     const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { schedule: { amount: number; cadence: string }; entries: unknown[]; shares: Record<string, number> }
     expect(saved.schedule).toMatchObject({ amount: 100, cadence: 'semimonthly' })
     expect(saved.entries).toHaveLength(1)
