@@ -267,6 +267,16 @@ describe('iPhone app', () => {
     expect(screen.getByText(/80% index funds · 20% companies/)).toBeInTheDocument()
   })
 
+  it('Plan: Funds only puts every dollar in the index funds and picks no companies', async () => {
+    start('#/plan')
+    fireEvent.click(await screen.findByRole('radio', { name: 'Funds only' }))
+    const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { core_pct: number }
+    expect(saved.core_pct).toBe(100)
+    expect(screen.getByText(/100% index funds · no individual companies/)).toBeInTheDocument()
+    expect(screen.getByText('2. Hand-picked companies: none (your choice)')).toBeInTheDocument()
+    expect(screen.getByText('1. Safe foundation (core): 100% of your money')).toBeInTheDocument()
+  })
+
   it('locked backup: restoring asks for the passphrase and an explicit replace', async () => {
     const { encryptBackup } = await import('../phone/backup')
     const { empty } = await import('../phone/store')
@@ -319,5 +329,14 @@ describe('iPhone app', () => {
     start('#/wall')
     expect(await screen.findByRole('button', { name: 'Save locked backup' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Invest' })).toHaveAttribute('aria-current', 'page')
+  })
+})
+
+describe('live status on Today', () => {
+  afterEach(() => { vi.unstubAllGlobals(); window.location.hash = ''; localStorage.clear() })
+
+  it('says how to turn live prices on when this device has no key', async () => {
+    start('#/today')
+    expect(await screen.findByTestId('ticker-live-status')).toHaveTextContent(/add your free Finnhub key/)
   })
 })

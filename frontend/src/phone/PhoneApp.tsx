@@ -12,7 +12,7 @@ import { accountSeries, belowHigh, change, chartable, flowsBetween, type History
 import { type ImportResult, parseRobinhood, type Trade } from './robinhood'
 import { buyStatus, CADENCE_WORDS, CADENCES, type Cadence, defaultSchedule, type Schedule } from './schedule'
 import { BackupCard, BackupReminder, CompanyStatus, FreshnessBar, OverlapCard, SleeveCard, SplitSetting, TopThree } from './Insights'
-import { freshnessOf, type Snapshot, skipFor, targetsFor } from './model'
+import { freshnessOf, fundsOnly, type Snapshot, skipFor, targetsFor } from './model'
 import type { Freshness, RefreshStatus } from './stale'
 import { fetchChart } from './charts'
 import { fetchResearch, type Research } from './research'
@@ -133,7 +133,7 @@ function Today({ snap, data, theme, update, fresh, now }: { snap: Snapshot; data
       <BackupReminder data={data} now={now} />
       <TodaysMove snap={snap} data={data} update={update} fresh={fresh} />
       <LiveNow shares={data.shares} quotes={quotesOf(snap)} />
-      <TopThree snap={snap} data={data} targets={targets} fresh={fresh} />
+      {!fundsOnly(snap, data) && <TopThree snap={snap} data={data} targets={targets} fresh={fresh} />}
       <YourMoney snap={snap} data={data} theme={theme} />
       <SleeveCard snap={snap} data={data} />
       <Card>
@@ -390,12 +390,19 @@ function YourMoney({ snap, data, theme }: { snap: Snapshot; data: PhoneData; the
 
 function Tickers({ snap, theme }: { snap: Snapshot; theme: Theme }) {
   const [open, setOpen] = useState<string | null>(null)
-  const live = useLive().quotes
+  const liveState = useLive()
+  const live = liveState.quotes
   const quotes = snap.prices?.quotes ?? {}
   const days = [...new Set(Object.values(quotes).map((q) => q.day))].sort()
   const last = days.at(-1)
   return (
     <Card title="Your plan’s tickers">
+      <p className="muted -mt-2 mb-3 text-xs" data-testid="ticker-live-status">
+        {!liveState.key ? <>Prices are at the last close. For live prices, add your free Finnhub key in <a className="underline" href="#/search">Search → Live prices</a> (once on each device and app).</>
+          : liveState.error ? <span className="text-[var(--color-down)]">Live prices aren’t working: {liveState.error}</span>
+            : liveState.checkedAt ? <><span className="text-[var(--color-up)]">● Live</span> · last checked {fmtTimestamp(liveState.checkedAt)}. Outside market hours (9:30–4:00 ET, weekdays) live shows the last trade.</>
+              : 'Getting live prices…'}
+      </p>
       {snap.plan.targets.length === 0 ? <p className="muted text-sm">No plan yet.</p> : (
         <ul className="divide-y divide-[var(--line)]">
           {snap.plan.targets.map((t) => {
@@ -783,7 +790,7 @@ function PlanPage({ snap, data, update }: { snap: Snapshot; data: PhoneData; upd
         <CompanyStatus snap={snap} targets={targets} />
         <OverlapCard snap={snap} targets={targets} />
       </div>
-      <PlanView data={plan} />
+      <PlanView data={plan} moneyHref="#/invest" fundsOnly={fundsOnly(snap, data)} />
     </div>
   )
 }

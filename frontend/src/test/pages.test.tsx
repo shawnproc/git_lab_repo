@@ -88,7 +88,8 @@ describe('My Plan', () => {
     expect(screen.getByText(/Hand-picked companies: 40%/)).toBeInTheDocument()
     expect(screen.getByText('$4,500.00')).toBeInTheDocument()
     expect(screen.getByText('Sales grew about 14% a year.')).toBeInTheDocument()
-    expect(screen.getByText(/pretend/)).toBeInTheDocument()
+    expect(screen.getByText(/not a suggestion to invest/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Example: of a pretend/).length).toBeGreaterThan(0)
     expect(screen.getByRole('img', { name: 'VTI 45.0%, VXUS 15.0%, MSFT 40.0%' })).toBeInTheDocument()
   })
 
