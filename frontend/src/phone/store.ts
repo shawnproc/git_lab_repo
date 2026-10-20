@@ -12,8 +12,9 @@ const MONTH = /^(199\d|20\d\d)-(0[1-9]|1[0-2])$/
 const MAX_ENTRIES = 2000
 const MAX_HOLDINGS = 50
 const MAX_TRADES = 20_000
-/** Allowed funds/stocks splits (% in the index funds). The 10% per-company cap applies to all. */
-export const CORE_CHOICES = [60, 70, 80] as const
+/** Allowed funds/stocks splits (% in the index funds). The 10% per-company cap applies to all.
+ * 100 = funds only: every dollar goes to the index funds and no companies are picked. */
+export const CORE_CHOICES = [60, 70, 80, 100] as const
 const DAY = /^(199\d|20\d\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
 const SOURCES = new Set(['robinhood', 'adjust', 'stone'])
 export const MAX_WATCH = 50
@@ -36,7 +37,7 @@ export interface PhoneData {
   shares: Record<string, number> // symbol -> shares you own (value = shares x last close)
   trades: Trade[] // share changes from a Robinhood import (and later edits), for real history
   schedule: Schedule | null // your buy days and amount (null until you set one)
-  core_pct: number | null // your funds/stocks split: 60, 70 or 80 (% in the index funds)
+  core_pct: number | null // your funds/stocks split: 60, 70, 80 or 100 (% in the index funds)
   last_backup_at: string | null // when you last saved a backup file
   values_as_of: string | null // when you last updated those values
   entries: Entry[] // the wall

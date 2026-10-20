@@ -12,7 +12,7 @@ import { accountSeries, belowHigh, change, chartable, flowsBetween, type History
 import { type ImportResult, parseRobinhood, type Trade } from './robinhood'
 import { buyStatus, CADENCE_WORDS, CADENCES, type Cadence, defaultSchedule, type Schedule } from './schedule'
 import { BackupCard, BackupReminder, CompanyStatus, FreshnessBar, OverlapCard, SleeveCard, SplitSetting, TopThree } from './Insights'
-import { freshnessOf, type Snapshot, skipFor, targetsFor } from './model'
+import { freshnessOf, fundsOnly, type Snapshot, skipFor, targetsFor } from './model'
 import type { Freshness, RefreshStatus } from './stale'
 import { fetchChart } from './charts'
 import { fetchResearch, type Research } from './research'
@@ -133,7 +133,7 @@ function Today({ snap, data, theme, update, fresh, now }: { snap: Snapshot; data
       <BackupReminder data={data} now={now} />
       <TodaysMove snap={snap} data={data} update={update} fresh={fresh} />
       <LiveNow shares={data.shares} quotes={quotesOf(snap)} />
-      <TopThree snap={snap} data={data} targets={targets} fresh={fresh} />
+      {!fundsOnly(snap, data) && <TopThree snap={snap} data={data} targets={targets} fresh={fresh} />}
       <YourMoney snap={snap} data={data} theme={theme} />
       <SleeveCard snap={snap} data={data} />
       <Card>
@@ -790,7 +790,7 @@ function PlanPage({ snap, data, update }: { snap: Snapshot; data: PhoneData; upd
         <CompanyStatus snap={snap} targets={targets} />
         <OverlapCard snap={snap} targets={targets} />
       </div>
-      <PlanView data={plan} moneyHref="#/invest" />
+      <PlanView data={plan} moneyHref="#/invest" fundsOnly={fundsOnly(snap, data)} />
     </div>
   )
 }

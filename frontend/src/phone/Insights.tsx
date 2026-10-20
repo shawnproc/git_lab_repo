@@ -197,16 +197,20 @@ export function SplitSetting({ snap, data, update }: { snap: Snapshot; data: Pho
   const current = data.core_pct ?? snap.rules.core_pct ?? 60
   return (
     <Card title="Your mix">
-      <p className="text-sm">How much goes to the two index funds vs. your individual companies. More in the funds = smoother ride; more in companies = more depends on the picks.</p>
-      <div role="radiogroup" aria-label="Funds and companies split" className="mt-3 grid grid-cols-3 gap-2">
+      <p className="text-sm">How much goes to the two index funds vs. your individual companies. More in the funds = smoother ride; more in companies = more depends on the picks. <b>Funds only</b> puts every dollar in the two funds, which already own nearly every public company.</p>
+      <div role="radiogroup" aria-label="Funds and companies split" className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {CORE_CHOICES.map((c) => (
           <button key={c} type="button" role="radio" aria-checked={current === c}
             className={`btn ${current === c ? '' : 'btn-ghost'} px-2`} onClick={() => { update({ ...data, core_pct: c }) }}>
-            {String(c)}/{String(100 - c)}
+            {c === 100 ? 'Funds only' : `${String(c)}/${String(100 - c)}`}
           </button>
         ))}
       </div>
-      <p className="muted mt-2 text-xs">{String(current)}% index funds · {String(100 - current)}% companies. No single company ever gets more than {fmtPct(snap.rules.max_single_stock_pct ?? 8, 0)}.</p>
+      {current >= 100 ? (
+        <p className="muted mt-2 text-xs">100% index funds · no individual companies. Companies you already own stay yours (nothing is sold); they just get no new money. Switch back any time.</p>
+      ) : (
+        <p className="muted mt-2 text-xs">{String(current)}% index funds · {String(100 - current)}% companies. No single company ever gets more than {fmtPct(snap.rules.max_single_stock_pct ?? 8, 0)}.</p>
+      )}
     </Card>
   )
 }

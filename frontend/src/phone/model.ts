@@ -65,11 +65,20 @@ export function includedPicks(snap: Snapshot, data: PhoneData, research: Researc
 export function targetsFor(snap: Snapshot, data: PhoneData, research: Research | null = null): SnapTarget[] {
   const funds = snap.rules.core_funds
   const cap = snap.rules.max_single_stock_pct
-  if (!funds || funds.length === 0 || cap === undefined) return snap.plan.targets // older snapshot
+  if (!funds || funds.length === 0 || cap === undefined) { // older snapshot: no fund weights to rebuild from
+    const core = snap.plan.targets.filter((t) => t.kind === 'core')
+    const sum = core.reduce((a, t) => a + t.target_pct, 0)
+    return fundsOnly(snap, data) && sum > 0 ? core.map((t) => ({ ...t, target_pct: (t.target_pct * 100) / sum })) : snap.plan.targets
+  }
   const core = snap.plan.targets.filter((t) => t.kind === 'core')
   const stocks = [...snap.plan.targets.filter((t) => t.kind === 'stock'), ...includedPicks(snap, data, research)]
-  const corePct = data.core_pct ?? snap.rules.core_pct ?? 60
-  return buildTargets(core, funds, stocks, 100 - corePct, cap)
+  if (fundsOnly(snap, data)) return buildTargets(core, funds, [], 0, cap)
+  return buildTargets(core, funds, stocks, 100 - (data.core_pct ?? snap.rules.core_pct ?? 60), cap)
+}
+
+/** True when you chose 100/0: every dollar goes to the index funds, no companies. */
+export function fundsOnly(snap: Snapshot, data: PhoneData): boolean {
+  return (data.core_pct ?? snap.rules.core_pct ?? 60) >= 100
 }
 
 /** Holdings that get no new buy-day money right now (price well above its usual level). */

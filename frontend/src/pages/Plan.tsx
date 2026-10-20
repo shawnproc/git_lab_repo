@@ -93,7 +93,7 @@ function ScreenRow({ r }: { r: ScreenResult }) {
   )
 }
 
-export function PlanView({ data, moneyHref = '#/money' }: { data: PlanData; moneyHref?: string }) {
+export function PlanView({ data, moneyHref = '#/money', fundsOnly = false }: { data: PlanData; moneyHref?: string; fundsOnly?: boolean }) {
   const core = data.targets.filter((t) => t.kind === 'core')
   const stocks = data.targets.filter((t) => t.kind === 'stock')
   const corePct = core.reduce((a, t) => a + t.target_pct, 0)
@@ -143,6 +143,15 @@ export function PlanView({ data, moneyHref = '#/money' }: { data: PlanData; mone
         </Explain>
       </Card>
 
+      {fundsOnly ? (
+        <Card title="2. Hand-picked companies: none (your choice)">
+          <p>
+            You chose <b>Funds only</b>, so every dollar goes to the two index funds above. VTI already owns every
+            company the plan would pick, so you still own them, just as a small slice of the whole market instead of
+            on their own. Companies you bought earlier stay yours (nothing is sold); they just get no new money.
+          </p>
+        </Card>
+      ) : (
       <Card title={`2. Hand-picked companies: ${fmtPct(stockPct, 0)} of your money`}>
         {stocks.length === 0 ? (
           <p>
@@ -170,12 +179,13 @@ export function PlanView({ data, moneyHref = '#/money' }: { data: PlanData; mone
             <li><b>Is the debt manageable?</b> It could pay off its long-term debt with 3 years of profit or less.</li>
           </ol>
           <p>
-            Companies that pass are ranked by growth plus profit, and the top 6 make the plan, with at most 2 from the
+            Companies that pass are ranked by growth plus profit, and the top ones (up to 10) make the plan, with at most 2 from the
             same industry so you’re not all-in on one area. No single company can ever be more than 10% of your money,
             so one bad pick can’t sink you.
           </p>
         </Explain>
       </Card>
+      )}
 
       <Card title="All 40 companies we checked">
         <p className="muted mb-3 text-sm">
