@@ -61,7 +61,7 @@ describe('iPhone app', () => {
     expect(screen.queryAllByText(/\bstones?\b/i)).toHaveLength(0) // no stones or wall anywhere
     expect(screen.queryByText(/Sign in/)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Wall' })).not.toBeInTheDocument()
-    for (const label of ['Today', 'Invest', 'Search', 'Plan', 'Learn']) expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
+    for (const label of ['Today', 'Holdings', 'Search', 'Plan', 'Learn']) expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
   })
 
   it('warns loudly when the snapshot is stale', async () => {
@@ -70,7 +70,7 @@ describe('iPhone app', () => {
     expect(screen.getByText(/fred: HTTP 503/)).toBeInTheDocument()
   })
 
-  it('invest flow: values -> split -> log it, all saved on the phone only', async () => {
+  it('holdings, then Today splits and logs the buy, all saved on the phone only', async () => {
     const fetchSpy = vi.fn(() => Promise.resolve(new Response(JSON.stringify(snapshot), { status: 200 })))
     window.location.hash = '#/invest'
     vi.stubGlobal('fetch', fetchSpy)
@@ -78,11 +78,14 @@ describe('iPhone app', () => {
     fireEvent.change(await screen.findByLabelText('VTI shares'), { target: { value: '3.2' } })
     expect(screen.getByText('≈ $1,000.00')).toBeInTheDocument() // 3.2 x $312.50
     expect(screen.getByLabelText('MSFT value in dollars')).toBeInTheDocument() // no price, so dollars
-    fireEvent.click(screen.getByRole('button', { name: 'Save values' }))
-    expect(screen.getByText('✓ Saved on this phone')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Split it' }))
-    expect(screen.getAllByText(/^Buy/).length).toBeGreaterThan(0)
-    fireEvent.click(screen.getByRole('button', { name: 'I invested $500.00' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByText('✓ Saved on this device')).toBeInTheDocument()
+    // Holdings is only for what you own: splitting and logging a buy happen on Today.
+    expect(screen.queryByRole('button', { name: /Split it/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('link', { name: 'Today' }))
+    fireEvent.change(await screen.findByLabelText('Dollars each buy day'), { target: { value: '500' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save my schedule' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'I bought these' }))
     expect(await screen.findByText(/✓ Logged/)).toBeInTheDocument()
     const saved = JSON.parse(localStorage.getItem('keystone.phone.v1') ?? '{}') as { holdings: Record<string, number>; shares: Record<string, number>; entries: unknown[] }
     expect(saved.entries).toHaveLength(1)
@@ -110,13 +113,6 @@ describe('iPhone app', () => {
     start('#/today', old)
     expect(await screen.findByText('Green')).toBeInTheDocument()
     expect(screen.getAllByText('no price today')).toHaveLength(3)
-  })
-
-  it('split shows estimated shares at the last close', async () => {
-    start('#/invest')
-    fireEvent.click(await screen.findByRole('button', { name: 'Split it' }))
-    // No values yet, so the split follows the targets: VTI gets 45% of $500 = $225.
-    expect(screen.getByText('≈ 0.72 shares at the last close of $312.50')).toBeInTheDocument()
   })
 
   it('Today shows your money as a big number with a chart and time ranges', async () => {
@@ -325,10 +321,10 @@ describe('iPhone app', () => {
     expect(within(card).getByText(/Your picks are ahead by \$80\.00/)).toBeInTheDocument()
   })
 
-  it('the old wall link opens Invest, which offers the backup', async () => {
+  it('the old wall link opens Holdings, which offers the backup', async () => {
     start('#/wall')
     expect(await screen.findByRole('button', { name: 'Save locked backup' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Invest' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Holdings' })).toHaveAttribute('aria-current', 'page')
   })
 })
 

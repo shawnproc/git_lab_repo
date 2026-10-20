@@ -27,7 +27,7 @@ export function LiveNow({ shares, quotes }: { shares: Record<string, number>; qu
     return (
       <Card>
         <div className="eyebrow">Right now <span className="text-[var(--color-up)]">● Live</span></div>
-        <p className="mt-2 text-sm">Live prices are on. Add the shares you own on the Invest tab to see what they’re worth this minute.</p>
+        <p className="mt-2 text-sm">Live prices are on. Add the shares you own on the Holdings tab to see what they’re worth this minute.</p>
       </Card>
     )
   }

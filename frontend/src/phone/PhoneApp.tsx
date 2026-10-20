@@ -1,6 +1,6 @@
 import { type ChangeEvent, createContext, type SubmitEvent, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { localMonth, type Plan as PlanData } from '../api'
-import { KeystoneLogo, MoodArch, SpiritLevel } from '../components/brand'
+import { KeystoneLogo, MoodArch } from '../components/brand'
 import { Card, Explain, PageHeader } from '../components/ui'
 import { fmtDay, fmtMoney, fmtPct, fmtShares, fmtSignedMoney, fmtSignedPct, fmtTimestamp, gainClass } from '../format'
 import { ValueChart } from '../components/ValueChart'
@@ -361,7 +361,7 @@ function YourMoney({ snap, data, theme }: { snap: Snapshot; data: PhoneData; the
       <Card>
         <div className="eyebrow">Your money</div>
         {Object.keys(values).length > 0 && <div className="serif text-5xl font-bold">{fmtMoney(outsideTotal)}</div>}
-        <p className="mt-2 text-sm">Type how many <b>shares</b> you own on the Invest tab and your chart appears here, updated every weekday.</p>
+        <p className="mt-2 text-sm">Type how many <b>shares</b> you own on the Holdings tab and your chart appears here, updated every weekday.</p>
         <a href="#/invest" className="btn mt-4 w-full">Add my shares →</a>
       </Card>
     )
@@ -540,7 +540,7 @@ function RobinhoodImport({ snap, data, update }: { snap: Snapshot; data: PhoneDa
   )
 }
 
-function Invest({ snap, data, update, fresh }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void; fresh: Freshness }) {
+function Invest({ snap, data, update }: { snap: Snapshot; data: PhoneData; update: (d: PhoneData) => void }) {
   const targets = useTargets(snap, data)
   const quotes = quotesOf(snap)
   const held = valuesOf(snap, data)
@@ -555,13 +555,8 @@ function Invest({ snap, data, update, fresh }: { snap: Snapshot; data: PhoneData
   const [extra, setExtra] = useState('')
   const [saved, setSaved] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const [amount, setAmount] = useState('500')
-  const [split, setSplit] = useState<ReturnType<typeof splitContribution> | null>(null)
-  const [addToHoldings, setAddToHoldings] = useState(true)
-  const [laid, setLaid] = useState(false)
 
-  const rows = drift(targets, held, snap.rules.drift)
-  const flagged = rows.filter((r) => r.flagged).length
+  const flagged = drift(targets, held, snap.rules.drift).filter((r) => r.flagged && r.kind !== 'off_plan').length
   const hasValues = Object.keys(held).length > 0
 
   function saveValues(e: SubmitEvent<HTMLFormElement>) {
@@ -607,49 +602,13 @@ function Invest({ snap, data, update, fresh }: { snap: Snapshot; data: PhoneData
     setExtra('')
   }
 
-  function doSplit(e: SubmitEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const n = Number(amount.replace(/[$,\s]/g, ''))
-    if (!Number.isFinite(n) || n <= 0) {
-      setProblem('Type the amount you’re adding, like 500.')
-      return
-    }
-    if (fresh.stale) {
-      setProblem('Prices are out of date, so the split is paused until the next update. ' + fresh.reason)
-      return
-    }
-    setProblem(null)
-    setLaid(false)
-    setSplit(splitContribution(n, targets, held, skipFor(targets)))
-  }
-
-  function logBuy() {
-    if (!split) return
-    const next = recordBuy(data, split.allocations, quotes, addToHoldings)
-    update(next)
-    const { holdings, shares } = next
-    if (addToHoldings) {
-      const updated = { ...values }
-      for (const [k, v] of Object.entries(holdings)) if (!priced(k)) updated[k] = String(v)
-      for (const [k, v] of Object.entries(shares)) if (priced(k)) updated[k] = String(v)
-      setValues(updated)
-    }
-    setLaid(true)
-  }
-
   return (
     <div className="space-y-5">
-      <PageHeader title="Invest" intro="Three steps, about two minutes. Keep your broker app open alongside." />
-      <Stamp snap={snap} />
+      <PageHeader title="Holdings" intro="What you own. Today uses it to split each buy. It stays on this device." />
 
-      <RobinhoodImport snap={snap} data={data} update={(d) => {
-        update(d)
-        setValues(Object.fromEntries([...new Set([...symbols, ...Object.keys(d.shares)])].map((s) => [s, (priced(s) ? d.shares[s] : d.holdings[s])?.toString() ?? ''])))
-      }} />
-
-      <Card title="1 · What you own">
+      <Card title="What you own">
         <p className="muted mb-3 text-sm">
-          Open your broker app and copy how many <b>shares</b> you own of each one (fractions are fine, like 0.4521). Leave blank what you don’t own.
+          Type how many <b>shares</b> you own of each one (fractions are fine). Leave blank what you don’t own.
           {data.values_as_of && ` Last updated ${fmtTimestamp(data.values_as_of)}.`}
         </p>
         <form onSubmit={saveValues} className="space-y-2">
@@ -675,9 +634,6 @@ function Invest({ snap, data, update, fresh }: { snap: Snapshot; data: PhoneData
                     <span className="muted w-24 text-right text-xs">no price: type $</span>
                   </>
                 )}
-                {q && !values[s] && data.holdings[s] !== undefined && (
-                  <span className="muted w-full pl-[4.75rem] text-xs">Using the {fmtMoney(data.holdings[s])} you typed before. Type shares to get the chart.</span>
-                )}
               </label>
             )
           })}
@@ -685,85 +641,20 @@ function Invest({ snap, data, update, fresh }: { snap: Snapshot; data: PhoneData
             <input className="input w-28 font-mono uppercase" placeholder="OTHER" value={extra} maxLength={16} aria-label="Add another ticker"
               onChange={(e) => { setExtra(e.target.value) }} />
             <button type="button" className="btn btn-ghost" onClick={addSymbol}>+ Add</button>
-            <button className="btn ml-auto">Save values</button>
+            <button className="btn ml-auto">Save</button>
           </div>
-          {saved && <p className="text-sm text-[var(--color-up)]">✓ Saved on this phone</p>}
+          {saved && <p className="text-sm text-[var(--color-up)]">✓ Saved on this device</p>}
         </form>
         {hasValues && (
-          <div className="mt-5">
-            <p className="mb-2 text-sm">{flagged === 0 ? '✅ Close to your plan.' : `⚠️ ${String(flagged)} drifted. This month’s split below fixes it gradually.`}</p>
-            <ul className="space-y-2">
-              {rows.map((r) => (
-                <li key={r.symbol} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  <span className="w-14 font-mono font-bold">{r.symbol}</span>
-                  {r.kind === 'off_plan' ? <span className="muted text-xs">not in plan</span> : <SpiritLevel diffPp={r.diff_pp} flagged={r.flagged} />}
-                  <span className="font-mono">{fmtPct(r.actual_pct)} <span className="muted">/ {fmtPct(r.target_pct)}</span></span>
-                  {r.reason && <span className={`w-full pl-[4.25rem] text-xs ${r.flagged ? 'text-[var(--color-warn)]' : 'muted'}`}>{r.reason}</span>}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <p className="mt-4 text-sm">{flagged === 0 ? '✅ Close to your plan.' : `⚠️ ${String(flagged)} off target. Your next buys on Today fix it gradually; no selling needed.`}</p>
         )}
-        <Explain title="Why type shares?">
-          <p>Shares are the one number that doesn’t change by itself. The app multiplies them by each evening’s closing price, so your total and your chart stay current without retyping.</p>
-          <p>Your shares never leave this phone. For a ticker with no daily price, type its dollar value instead.</p>
-          <p>The <b>level</b> shows each holding against its target: middle line = target, bubble = you. Green inside the ±5-point marks, amber outside.</p>
-        </Explain>
       </Card>
 
-      <Card title="2 · Split this month’s money">
-        <form onSubmit={doSplit} className="flex items-end gap-2">
-          <label className="flex-1 text-sm">
-            How much are you adding?
-            <div className="mt-1 flex items-center gap-1"><span className="font-mono text-lg">$</span>
-              <input className="input font-mono" inputMode="decimal" value={amount} aria-label="Amount to add in dollars"
-                onChange={(e) => { setAmount(e.target.value) }} /></div>
-          </label>
-          <button className="btn">Split it</button>
-        </form>
-        {split && (
-          <div className="mt-4">
-            <ol className="slip space-y-3 px-4 pb-4">
-              {split.allocations.map((a, i) => {
-                const q = snap.prices?.quotes[a.symbol]
-                return (
-                  <li key={a.symbol}>
-                    <div className="flex items-end">
-                      <span className="serif text-lg"><span className="muted mr-2 font-mono text-sm">{String(i + 1).padStart(2, '0')}</span>Buy <b className="font-mono">{a.symbol}</b></span>
-                      <span className="leader" aria-hidden />
-                      <b className="font-mono text-lg">{fmtMoney(a.amount)}</b>
-                    </div>
-                    {q && <div className="muted pl-8 text-xs">≈ {fmtShares(a.amount / q.close)} shares at the last close of {fmtMoney(q.close)}</div>}
-                  </li>
-                )
-              })}
-            </ol>
-            {!hasValues && <p className="muted mt-2 text-xs">No holdings values yet, so this follows your plan’s targets exactly.</p>}
-            <p className="muted mt-2 text-xs">In your broker app, choose to buy <b>in dollars</b> and type each amount. Share counts are estimates: today’s price will be a little different.</p>
-          </div>
-        )}
-        <Explain title="How is it split?">
-          <p>Money goes to whatever is furthest <b>below</b> its target first, so you never need to sell to stay on plan.</p>
-        </Explain>
-      </Card>
+      <RobinhoodImport snap={snap} data={data} update={(d) => {
+        update(d)
+        setValues(Object.fromEntries([...new Set([...symbols, ...Object.keys(d.shares)])].map((s) => [s, (priced(s) ? d.shares[s] : d.holdings[s])?.toString() ?? ''])))
+      }} />
 
-      <Card title="3 · Log what you bought">
-        {!split ? (
-          <p className="muted text-sm">Split your money above, buy it in your broker app, then come back here.</p>
-        ) : laid ? (
-          <p className="font-semibold text-[var(--color-up)]">✓ Logged. Today’s move will show you’re done until your next buy day.</p>
-        ) : (
-          <>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={addToHoldings} onChange={(e) => { setAddToHoldings(e.target.checked) }} />
-              Also add these to what I own (shares estimated at the last close; fix them from your broker app later)
-            </label>
-            <button className="btn mt-3 w-full" onClick={logBuy}>
-              I invested {fmtMoney(split.allocations.reduce((a, x) => a + x.amount, 0))}
-            </button>
-          </>
-        )}
-      </Card>
       <BackupCard data={data} update={update} />
       {problem && <p role="alert" className="fixed inset-x-4 bottom-24 z-20 border-l-4 border-[var(--color-down)] bg-[var(--panel)] p-3 text-sm shadow-xl">{problem}</p>}
     </div>
@@ -800,7 +691,7 @@ function PlanPage({ snap, data, update }: { snap: Snapshot; data: PhoneData; upd
 
 const TABS = [
   { id: 'today', label: 'Today', icon: 'M3 20h18M5 20v-6a7 7 0 0 1 14 0v6M10 7l2-3 2 3' },
-  { id: 'invest', label: 'Invest', icon: 'M12 3v18M7 8h7a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h8' },
+  { id: 'invest', label: 'Holdings', icon: 'M12 3v18M7 8h7a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h8' },
   { id: 'search', label: 'Search', icon: 'M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM20 20l-4.8-4.8' },
   { id: 'plan', label: 'Plan', icon: 'M3 20h18M4 20v-5h7v5M13 20v-9h7v9M8 15V9h8v2' },
   { id: 'learn', label: 'Learn', icon: 'M4 5h7a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H4zM20 5h-6a3 3 0 0 0-3 3' },
@@ -812,7 +703,7 @@ const TABS = [
 ] as const
 const MOON_TABS = new Set<string>(['radar', 'moon', 'sell', 'moonlearn'])
 type TabId = (typeof TABS)[number]['id']
-const ALIAS: Record<string, TabId> = { home: 'today', money: 'invest', wall: 'invest' }
+const ALIAS: Record<string, TabId> = { home: 'today', money: 'invest', wall: 'invest', holdings: 'invest' }
 
 function tabFromHash(): TabId {
   const h = window.location.hash.replace(/^#\/?/, '').split('?')[0] ?? ''
@@ -890,7 +781,7 @@ export default function PhoneApp() {
         {error && <p role="alert" className="mb-4 border-l-4 border-[var(--color-down)] p-3 text-sm">{error}</p>}
         {!snap && !error && <p className="muted">Loading today’s data…</p>}
         {snap && tab === 'today' && <Today snap={snap} data={data} theme={theme} update={update} fresh={freshnessOf(snap, status, now)} now={now} />}
-        {snap && tab === 'invest' && <Invest snap={snap} data={data} update={update} fresh={freshnessOf(snap, status, now)} />}
+        {snap && tab === 'invest' && <Invest snap={snap} data={data} update={update} />}
         {tab === 'search' && (
           <SearchPage research={research} error={researchError} watch={phoneWatch(data, update)}
             chart={(sym) => <CompanyChart key={sym} symbol={sym} snap={snap} theme={theme} />} />
