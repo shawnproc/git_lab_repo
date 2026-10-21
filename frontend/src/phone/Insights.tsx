@@ -114,7 +114,7 @@ export function SleeveCard({ snap, data }: { snap: Snapshot; data: PhoneData }) 
       <div className="eyebrow">Your picks vs. just {bench}</div>
       {!r ? (
         <p className="mt-2 text-sm">{data.trades.length === 0
-          ? 'Import your Robinhood report (Invest tab) and this shows whether your individual stocks are beating the same dollars put into the index fund on the same days.'
+          ? 'Import your Robinhood report (Holdings tab) and this shows whether your individual stocks are beating the same dollars put into the index fund on the same days.'
           : 'None of your individual stocks has a price history here yet, so there’s nothing to compare.'}</p>
       ) : (
         <>

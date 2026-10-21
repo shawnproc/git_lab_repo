@@ -139,7 +139,7 @@ describe('Moonshot side', () => {
     fireEvent.click(go)
     expect(await screen.findByText('Your risk budget')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Bets/ })).toBeInTheDocument() // the Moonshot dock
-    expect(screen.queryByRole('link', { name: 'Invest' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Holdings' })).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Ticker'), { target: { value: 'pltr' } })
     fireEvent.change(screen.getByLabelText('Dollars paid'), { target: { value: '400' } })
     fireEvent.change(screen.getByLabelText('Shares'), { target: { value: '10' } })

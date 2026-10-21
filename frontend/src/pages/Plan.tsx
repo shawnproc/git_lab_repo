@@ -105,7 +105,7 @@ export function PlanView({ data, moneyHref = '#/money', fundsOnly = false }: { d
         <p className="rounded-lg border border-[var(--line)] p-3 text-sm">
           <b>The dollar amounts are an example, not a suggestion to invest {fmtMoney(data.basis_value, false)}.</b> They show
           how the percentages would split a pretend {fmtMoney(data.basis_value, false)}, because you haven’t entered what you own on
-          this device yet. Once you do (on <a className="underline" href={moneyHref}>{moneyHref === '#/invest' ? 'the Invest tab' : 'My Money'}</a>), they
+          this device yet. Once you do (on <a className="underline" href={moneyHref}>{moneyHref === '#/invest' ? 'the Holdings tab' : 'My Money'}</a>), they
           use your real total. What to put in on each buy day is on the Today tab.
         </p>
       )}
